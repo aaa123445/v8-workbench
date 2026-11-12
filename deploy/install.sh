@@ -128,8 +128,13 @@ if [ -d "$APP_DIR/seed/references" ]; then
     --skill-dir "$APP_DIR/seed" 2>&1 | tail -5 || warn "语料导入失败"
 else
   log "从语雀拉取知识库（首次全量约 1-3 分钟）"
+  # 必须 cd 到 APP_DIR：heredoc 里的 import 依赖 cwd 在 sys.path 上，
+  # 否则从任意目录执行本脚本都会 ModuleNotFoundError。
   sudo -u "$SVC_USER" env V8WB_DATA_DIR="$DATA_DIR" V8WB_YUQUE_BOOK=seeyonkk/v8 \
-    "$APP_DIR/.venv/bin/python" - <<'PYSYNC' 2>&1 | tail -8 || warn "语雀同步失败，稍后可在管理页重试"
+    sh -c "cd '$APP_DIR' && '$APP_DIR/.venv/bin/python' -" <<'PYSYNC' 2>&1 | tail -10 || warn "语雀同步失败，稍后可在管理页重试"
+import sys
+sys.path.insert(0, ".")
+
 from server.core.container import get_container
 from server.core.yuque import sync_book
 
