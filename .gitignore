@@ -1,0 +1,41 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+
+# ---- 虚拟环境 ----
+.venv/
+venv/
+env/
+
+# ---- 运行时数据 ----
+# SQLite 数据库含 API Key 哈希、用量记录、知识库内容
+data/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.log
+
+# ---- 种子语料 ----
+# 232 篇语雀 V8 客开文档，不从仓库分发。
+# 服务器部署时由 install.sh 从语雀在线拉取，或手动放入此目录。
+seed/
+
+# ---- 敏感配置 ----
+.env
+.deploy/
+*.pem
+*.key
+id_ed25519*
+
+# ---- 编辑器 / 系统 ----
+.DS_Store
+.idea/
+.vscode/
+*.swp
+.pytest_cache/

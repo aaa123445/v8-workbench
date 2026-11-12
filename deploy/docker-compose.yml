@@ -1,0 +1,39 @@
+services:
+  workbench:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: v8-workbench:0.1.0
+    container_name: v8-workbench
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8770:8770"   # 只绑本地，对外走 Nginx 反代 + TLS
+    environment:
+      V8WB_DATA_DIR: /data
+      V8WB_REQUIRE_AUTH: "true"
+      # 首次启动时注入，用于创建第一个管理员 key。之后可以从环境变量移除。
+      V8WB_BOOTSTRAP_ADMIN_KEY: "${V8WB_BOOTSTRAP_ADMIN_KEY:?需要设置初始管理员 key}"
+      V8WB_DEFAULT_RPM: "120"
+      V8WB_DEFAULT_DAILY: "20000"
+      # 语雀自动同步（可选）
+      V8WB_YUQUE_ENABLED: "${V8WB_YUQUE_ENABLED:-false}"
+      V8WB_YUQUE_BOOK: "${V8WB_YUQUE_BOOK:-seeyonkk/v8}"
+      V8WB_YUQUE_TOKEN: "${V8WB_YUQUE_TOKEN:-}"
+      V8WB_YUQUE_INTERVAL_MIN: "${V8WB_YUQUE_INTERVAL_MIN:-1440}"
+      TZ: Asia/Shanghai
+    volumes:
+      - v8wb-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8770/health',timeout=4).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  v8wb-data:
