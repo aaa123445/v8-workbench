@@ -25,7 +25,19 @@ from typing import Any
 from .docs import DocInput, DocRepo
 
 BOOK_BASE = "https://www.yuque.com"
-USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 V8Workbench/0.1"
+
+# 必须是完整的浏览器 UA。
+#
+# 语雀会检查 UA 里的浏览器标识：带自研后缀（如 "...V8Workbench/0.1"）会被判定为
+# 爬虫，返回一个约 5KB 的空壳页面（没有 window.appData）。这种情况下原实现会误报
+# "页面结构变化"，实际是被反爬拦截了。这里务必保持标准 Chrome UA 的原样。
+USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+
+# 空壳页面的特征：正常书籍页 100KB+，被拦截时只有几 KB
+_MIN_PAGE_BYTES = 20000
 
 
 class YuqueError(Exception):
@@ -45,45 +57,79 @@ class TocNode:
     updated_at: str
 
 
-def _fetch(url: str, *, token: str = "", timeout: int = 30, retries: int = 3) -> str:
-    headers = {"User-Agent": USER_AGENT}
+def _headers(token: str = "", referer: str = "") -> dict[str, str]:
+    h = {"User-Agent": USER_AGENT, "Accept": "text/html,application/json,*/*"}
     if token:
-        headers["X-Auth-Token"] = token
+        h["X-Auth-Token"] = token
+    if referer:
+        h["Referer"] = referer
+    return h
+
+
+def _fetch(
+    url: str,
+    *,
+    token: str = "",
+    timeout: int = 30,
+    retries: int = 3,
+    referer: str = "",
+    insecure: bool = False,
+) -> str:
     last: Exception | None = None
     for attempt in range(retries):
         try:
-            req = urllib.request.Request(url, headers=headers)
-            ctx = ssl.create_default_context()
+            req = urllib.request.Request(url, headers=_headers(token, referer))
+            ctx = ssl._create_unverified_context() if insecure else ssl.create_default_context()
             with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
                 return resp.read().decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as exc:
+            # 403/404 是确定性的，重试没意义
+            if exc.code in (403, 404):
+                raise YuqueError(f"语雀返回 {exc.code}：{url}") from exc
+            last = exc
         except Exception as exc:  # noqa: BLE001
             last = exc
-            if attempt < retries - 1:
-                time.sleep(1.5 * (attempt + 1))
+        if attempt < retries - 1:
+            time.sleep(1.5 * (attempt + 1))
     raise YuqueError(f"拉取失败 {url}: {last}")
 
 
 def _fetch_insecure(url: str, *, token: str = "", timeout: int = 30) -> str:
-    headers = {"User-Agent": USER_AGENT}
-    if token:
-        headers["X-Auth-Token"] = token
-    req = urllib.request.Request(url, headers=headers)
-    ctx = ssl._create_unverified_context()
-    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
-        return resp.read().decode("utf-8", errors="replace")
+    return _fetch(url, token=token, timeout=timeout, retries=1, insecure=True)
 
 
 # ---------------- 目录 ----------------
 
-def fetch_toc(book: str, *, token: str = "", insecure: bool = False) -> list[TocNode]:
+def fetch_book_meta(book: str, *, token: str = "", insecure: bool = False) -> tuple[int, list[dict]]:
+    """返回 (book_id, toc 原始数组)。
+
+    book_id 是抓正文必需参数，从书籍页的 appData.book.id 拿。
+    """
     url = f"{BOOK_BASE}/{book}"
     page = (_fetch_insecure if insecure else _fetch)(url, token=token)
     data = _extract_app_data(page)
     book_data = data.get("book") or {}
     toc = book_data.get("toc") or []
+    book_id = book_data.get("id")
     if not toc:
         raise YuqueError("目录为空，可能是知识库不可公开访问，请配置 token")
+    if not book_id:
+        raise YuqueError("未能从书籍页取到 book_id，语雀页面结构可能已变化")
+    return int(book_id), toc
 
+
+def fetch_toc(book: str, *, token: str = "", insecure: bool = False) -> list[TocNode]:
+    _, toc = fetch_book_meta(book, token=token, insecure=insecure)
+    return _toc_to_nodes(toc)
+
+
+def _toc_to_nodes(toc: list[dict]) -> list[TocNode]:
+    """把语雀的扁平 TOC 数组还原成带层级路径的节点列表。
+
+    语雀的 toc 是扁平结构（每项带 level 和 parent_uuid），这里用栈还原出
+    「开发规范 > 编码规范 > 命名风格」这样的完整路径 —— 这个路径是检索时
+    结构化先验的来源，不能丢。
+    """
     nodes: list[TocNode] = []
     stack: list[tuple[int, str, list[str]]] = []
     for item in toc:
@@ -123,20 +169,62 @@ def _extract_app_data(page_html: str) -> dict[str, Any]:
         m = re.search(r"window\.appData\s*=\s*(\{.+?\});\s*(?:window|</script>)", page_html, re.S)
         if m:
             return json.loads(m.group(1))
-        raise YuqueError("页面结构变化，无法解析 appData")
+
+        # 区分"被反爬拦截"和"页面结构真的变了"，否则排错方向完全是错的。
+        # 正常书籍页 100KB+；被拦截时只有几 KB 且不含 appData。
+        size = len(page_html.encode("utf-8", errors="ignore"))
+        if size < _MIN_PAGE_BYTES:
+            hint = ""
+            if "V8Workbench" in page_html or "python" in page_html.lower():
+                hint = "（检测到自定义 User-Agent，很可能是被反爬拦截）"
+            raise YuqueError(
+                f"语雀返回了 {size} 字节的空壳页面，疑似反爬拦截{hint}。"
+                "请确认 USER_AGENT 是标准浏览器 UA；"
+                "如知识库不公开，需设置 V8WB_YUQUE_TOKEN。"
+            )
+        raise YuqueError(
+            f"页面结构变化，无法解析 appData（页面 {size} 字节）。"
+            "语雀前端可能已改版，需要更新 server/core/yuque.py 的解析逻辑。"
+        )
     return json.loads(urllib.parse.unquote(m.group(1)))
 
 
 # ---------------- 正文 ----------------
 
-def fetch_doc_markdown(book: str, node: TocNode, *, token: str = "", insecure: bool = False) -> str:
-    url = f"{BOOK_BASE}/{book}/{node.url}" if node.url else f"{BOOK_BASE}/{book}"
-    page = (_fetch_insecure if insecure else _fetch)(url, token=token)
-    data = _extract_app_data(page)
-    doc = data.get("doc") or {}
-    lake = doc.get("body_lake") or doc.get("body") or ""
+def fetch_doc_markdown(
+    book: str,
+    node: TocNode,
+    *,
+    book_id: int,
+    token: str = "",
+    insecure: bool = False,
+) -> str:
+    """抓取单篇文档正文。
+
+    正文不在文档页的 appData 里（body_asl/body_lake 均为空，语雀改成异步加载了），
+    改走公开 API：/api/docs/{slug}?book_id={id}，正文在 data.content（Lake HTML）。
+
+    这个接口要求 allow_public_api_read 为 true —— 公开知识库默认满足。
+    """
+    if not book_id:
+        raise YuqueError("缺少 book_id，无法调用文档 API")
+
+    api = f"{BOOK_BASE}/api/docs/{node.url}?book_id={book_id}"
+    referer = f"{BOOK_BASE}/{book}/{node.url}" if node.url else f"{BOOK_BASE}/{book}"
+    raw = (_fetch_insecure if insecure else _fetch)(
+        api, token=token, referer=referer
+    )
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise YuqueError(f"文档 API 返回非 JSON：{raw[:120]}") from exc
+
+    data = payload.get("data") or {}
+    lake = data.get("content") or data.get("body") or data.get("body_lake") or ""
     if not lake:
-        raise YuqueError("正文为空")
+        raise YuqueError(
+            f"正文为空（allow_public_api_read={data.get('allow_public_api_read')}）"
+        )
     conv = LakeToMarkdown()
     conv.feed(lake)
     conv.close()
@@ -269,7 +357,8 @@ def sync_book(
     limit: int | None = None,
     progress=None,
 ) -> dict:
-    nodes = fetch_toc(book, token=token, insecure=insecure)
+    book_id, toc = fetch_book_meta(book, token=token, insecure=insecure)
+    nodes = _toc_to_nodes(toc)
     stat = {"toc": len(nodes), "fetched": 0, "created": 0, "updated": 0,
             "unchanged": 0, "failed": 0, "skipped": 0, "errors": []}
 
@@ -281,7 +370,9 @@ def sync_book(
                 stat["skipped"] += 1
                 continue
         try:
-            body = fetch_doc_markdown(book, node, token=token, insecure=insecure)
+            body = fetch_doc_markdown(
+                book, node, book_id=book_id, token=token, insecure=insecure
+            )
             stat["fetched"] += 1
             r = repo.upsert(
                 DocInput(
