@@ -182,6 +182,10 @@ test("使用说明覆盖三种接入方式，支持下载且无横向溢出", as
 }) => {
   await mockApp(page);
   await page.goto("/#/guide?section=1.5");
+  await expect(page.locator(".guide-body")).toContainText("一键接入本地 Agent");
+  await page
+    .getByRole("button", { name: "平台使用：分类、审核与版本", exact: true })
+    .click();
   await expect(page.locator(".guide-body")).toContainText(
     "平台使用：分类、审核与版本",
   );
