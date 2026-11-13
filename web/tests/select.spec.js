@@ -74,6 +74,7 @@ test("searchable options stay within the viewport and close when navigating", as
     .getByRole("link", { name: "浏览知识库", exact: true })
     .first()
     .click();
+  await expect(page.locator(".route-page")).toHaveCount(1);
   await expect(page.locator(".route-page")).toBeVisible();
   await expect(page.getByRole("listbox")).toHaveCount(0);
 });
@@ -86,4 +87,28 @@ test("reduced motion removes page and popover animation", async ({ page }) => {
     .locator(".app-select-panel")
     .evaluate((e) => getComputedStyle(e).transitionDuration);
   expect(duration).toBe("0s");
+});
+
+test("page navigation mounts incoming content without waiting for an exit animation", async ({
+  page,
+}) => {
+  await page.goto("/#/graph");
+  await expect(
+    page.getByRole("heading", { name: "知识链", exact: true }),
+  ).toBeVisible();
+  // Expose an accidental return to sequential out-in transitions.
+  await page.addStyleTag({
+    content: ".page-leave-active { transition: opacity 2s !important; }",
+  });
+  await page
+    .getByRole("link", { name: "浏览知识库", exact: true })
+    .first()
+    .hover();
+  await page.waitForTimeout(200);
+  await page
+    .getByRole("link", { name: "浏览知识库", exact: true })
+    .first()
+    .click();
+  await expect(page.locator(".kb-library")).toBeVisible({ timeout: 1000 });
+  await expect(page.locator(".route-page")).toHaveCount(1);
 });

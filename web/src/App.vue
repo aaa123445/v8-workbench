@@ -7,6 +7,7 @@ import {
   defineAsyncComponent,
 } from "vue";
 import { useRoute } from "vue-router";
+import router from "./router";
 import { X, CircleAlert, CheckCircle2 } from "lucide-vue-next";
 import { loadSession, hasAccess } from "./composables/session";
 import {
@@ -41,7 +42,32 @@ watch(
   },
   { immediate: true },
 );
+// Warm a route chunk as soon as the user points at or focuses its link.
+// Imports are shared with Vue Router, and a failed preload remains retryable.
+const preloading = new WeakSet();
+function preloadRoute(event) {
+  const link = event.target.closest?.("a[href]");
+  if (!link || link.origin !== location.origin || !link.hash.startsWith("#/"))
+    return;
+  const target = router.resolve(link.hash.slice(1));
+  for (const record of target.matched) {
+    const loader = record.components?.default;
+    if (typeof loader !== "function" || preloading.has(loader)) continue;
+    preloading.add(loader);
+    Promise.resolve()
+      .then(loader)
+      .catch(() => preloading.delete(loader));
+  }
+}
+onBeforeUnmount(() => {
+  document.removeEventListener("pointerover", preloadRoute);
+  document.removeEventListener("focusin", preloadRoute);
+  document.removeEventListener("touchstart", preloadRoute);
+});
 onMounted(async () => {
+  document.addEventListener("pointerover", preloadRoute, { passive: true });
+  document.addEventListener("focusin", preloadRoute);
+  document.addEventListener("touchstart", preloadRoute, { passive: true });
   loadSession().catch(() => {});
   try {
     const response = await fetch("/health");
@@ -57,7 +83,7 @@ onMounted(async () => {
     :is="route.meta.layout === 'public' ? PublicLayout : WorkspaceLayout"
     :online="online"
     ><RouterView v-slot="{ Component }"
-      ><Transition name="page" mode="out-in"
+      ><Transition name="page" :duration="{ enter: 120, leave: 0 }"
         ><div :key="route.path" class="route-page">
           <component
             :is="Component"

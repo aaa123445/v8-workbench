@@ -139,17 +139,17 @@
 }
 .page-enter-active {
   transition:
-    opacity 180ms ease-out,
-    transform 180ms ease-out;
+    opacity 120ms ease-out,
+    transform 120ms ease-out;
 }
 .page-leave-active {
-  transition:
-    opacity 100ms ease-in,
-    transform 100ms ease-in;
+  /* Remove the old page immediately; only animate the incoming content. */
+  display: none;
+  transition: none;
 }
 .page-enter-from {
-  opacity: 0;
-  transform: translateY(7px);
+  opacity: 0.6;
+  transform: translateY(3px);
 }
 .page-leave-to {
   opacity: 0;
