@@ -54,3 +54,15 @@ permissions remain authoritative. Full license texts ship in the website's
 - Copyright and full license: [relation-graph MIT](public/licenses/relation-graph.txt).
 - Used: Vue 3 graph renderer, center layout, node dragging, canvas panning and zoom controls.
 - Our adaptation: custom document cards, a quiet lavender knowledge workspace, explicit relation styling, independent-document state, accessible node buttons and separate optional related-reading list. Similarity suggestions never become graph edges automatically.
+
+## StackHacker Chat (assistant conversation interface)
+
+- Repository: https://github.com/stackhacker-ui/chat
+- Reference commit: `edc0d30e54f3704543bc38ec55e76e228e672456`
+- Copyright (c) 2025-2026 hirotaka
+- License: [MIT](public/licenses/stackhacker-chat.txt)
+- Adapted: ChatMessage.vue's left/right message and avatar composition,
+  ChatPrompt.vue's composer and keyboard submission, and conversational welcome layout.
+- Changes: Existing Vue app authentication, bounded server-side conversation context,
+  knowledge retrieval, per-answer citations, error/retry/stop behavior and responsive CSS.
+  No template backend, tracking, provider secrets or demo authentication are included.

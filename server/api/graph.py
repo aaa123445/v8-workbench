@@ -22,6 +22,11 @@ class Classification(BaseModel):
     content: str = Field(default="", max_length=10000)
 
 
+class ConversationTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=4000)
+
+
 class Question(BaseModel):
     question: str = Field(min_length=2, max_length=1200)
     category_id: str = Field(default="", max_length=100)
@@ -29,6 +34,7 @@ class Question(BaseModel):
         "auto", "explore", "troubleshoot", "develop", "compare", "learn"
     ] = "auto"
     mode: Literal["auto", "search", "chain"] = "auto"
+    history: list[ConversationTurn] = Field(default_factory=list, max_length=12)
 
 
 class AgentSettings(BaseModel):

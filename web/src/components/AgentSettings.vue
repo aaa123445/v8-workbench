@@ -55,13 +55,13 @@ async function save() {
     </div>
     <p class="hint">
       兼容 OpenAI Chat Completions
-      协议。仅发送用户问题和相关已发布知识片段，不执行命令。启用前请确认该模型服务适合处理团队知识。
+      协议。发送当前问题、最近对话和相关已发布知识片段，不执行命令。启用前请确认该模型服务适合处理团队知识。
     </p>
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
     <form v-if="loaded" @submit.prevent="save">
       <div class="form-row">
         <label class="field"
-          >API 根地址<input
+          >API 根地址（支持 HTTP / HTTPS）<input
             v-model="form.base_url"
             placeholder="https://provider.example/v1"
             maxlength="1000" /></label

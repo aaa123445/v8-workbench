@@ -1,7 +1,16 @@
 <script setup>
 import AppSelect from "../components/ui/AppSelect.vue";
-import { ref, onBeforeUnmount, watch } from "vue";
-import { Bot, Send, Network, ArrowRight } from "lucide-vue-next";
+import { ref, computed, onBeforeUnmount, watch, nextTick } from "vue";
+import {
+  Bot,
+  Send,
+  Network,
+  ArrowRight,
+  Plus,
+  UserRound,
+  StopCircle,
+  RotateCcw,
+} from "lucide-vue-next";
 import { api, post } from "../services/api";
 import { authVersion } from "../composables/workspace";
 import { useResource } from "../composables/useResource";
@@ -19,46 +28,10 @@ const question = ref(""),
   mode = ref("auto"),
   busy = ref(false),
   error = ref(""),
-  answer = ref(null),
+  messages = ref([]),
   asked = ref("");
+const scroll = ref(null);
 let controller;
-async function ask(value = question.value) {
-  if (!value.trim() || busy.value) return;
-  question.value = value;
-  asked.value = value;
-  controller = new AbortController();
-  busy.value = true;
-  error.value = "";
-  answer.value = null;
-  try {
-    answer.value = await post(
-      "/assistant/ask",
-      {
-        question: value.trim(),
-        category_id: category.value,
-        scenario: scenario.value,
-        mode: mode.value,
-      },
-      { signal: controller.signal },
-    );
-  } catch (e) {
-    if (e.name !== "AbortError") error.value = e.message;
-  } finally {
-    busy.value = false;
-  }
-}
-function cancel() {
-  controller?.abort();
-  busy.value = false;
-  error.value = "已停止等待；模型服务可能仍在完成本次请求。";
-}
-watch(authVersion, () => {
-  controller?.abort();
-  answer.value = null;
-  question.value = "";
-  asked.value = "";
-});
-onBeforeUnmount(() => controller?.abort());
 const labels = {
   explore: "知识探索",
   troubleshoot: "排障溯源",
@@ -66,159 +39,312 @@ const labels = {
   compare: "方案对比",
   learn: "学习路线",
 };
+const examples = [
+  "如何排查组织同步失败？",
+  "V5 和 V8 的扩展开发有哪些区别？",
+  "我想学习移动开发，应该先看哪些知识？",
+];
+const hasConversation = computed(() => messages.value.length > 0);
+watch(
+  () => [messages.value.length, busy.value],
+  async () => {
+    await nextTick();
+    scroll.value?.scrollTo({
+      top: scroll.value.scrollHeight,
+      behavior: "smooth",
+    });
+  },
+);
+async function ask(value = question.value) {
+  const text = value.trim();
+  if (!text || busy.value) return;
+  question.value = "";
+  asked.value = text;
+  error.value = "";
+  busy.value = true;
+  controller = new AbortController();
+  const requestController = controller;
+  const previous = messages.value
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .slice(-8)
+    .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
+  messages.value.push({ role: "user", content: text, time: Date.now() });
+  await nextTick();
+  scroll.value?.scrollTo({
+    top: scroll.value.scrollHeight,
+    behavior: "smooth",
+  });
+  try {
+    const answer = await post(
+      "/assistant/ask",
+      {
+        question: text,
+        category_id: category.value,
+        scenario: scenario.value,
+        mode: mode.value,
+        history: previous,
+      },
+      { signal: requestController.signal },
+    );
+    if (requestController.signal.aborted) return;
+    messages.value.push({
+      role: "assistant",
+      content: answer.answer,
+      answer,
+      time: Date.now(),
+    });
+  } catch (e) {
+    if (e.name !== "AbortError") {
+      error.value = e.message;
+      messages.value.push({
+        role: "error",
+        content: e.message,
+        time: Date.now(),
+      });
+    }
+  } finally {
+    if (controller === requestController) busy.value = false;
+  }
+}
+function cancel() {
+  controller?.abort();
+  busy.value = false;
+  error.value = "已停止本次等待。";
+}
+function clearChat() {
+  controller?.abort();
+  busy.value = false;
+  messages.value = [];
+  question.value = "";
+  error.value = "";
+}
+function retry() {
+  const last = [...messages.value].reverse().find((m) => m.role === "user");
+  if (last) {
+    messages.value = messages.value.filter(
+      (m) => m !== last && m.role !== "error" && m.time < last.time,
+    );
+    ask(last.content);
+  }
+}
+watch(authVersion, () => {
+  controller?.abort();
+  clearChat();
+});
+onBeforeUnmount(() => controller?.abort());
 </script>
 <template>
-  <section class="intelligence-page assistant-page">
-    <div class="page-heading">
+  <section class="intelligence-page assistant-page assistant-chat-page">
+    <div class="page-heading assistant-chat-heading">
       <div>
-        <div class="eyebrow section-eyebrow">GROUNDED TEAM INTELLIGENCE</div>
+        <div class="eyebrow section-eyebrow">TEAM KNOWLEDGE ASSISTANT</div>
         <h1>云端智能体</h1>
-        <p>先找依据，再沿知识链分析。回答附带原文和版本，方便你核验。</p>
+        <p>基于团队知识库连续对话，回答附带可核验的原文和版本。</p>
       </div>
-      <RouterLink to="/graph" class="button"
-        ><Network :size="16" />知识链</RouterLink
-      >
-    </div>
-    <div class="assistant-hero panel">
-      <span class="assistant-avatar"><Bot :size="30" /></span>
-      <h2>把问题交给团队知识库</h2>
-      <p>排查问题、规划开发、比较方案，或找到一条学习路线。</p>
-      <div class="assistant-examples">
-        <button
-          v-for="q in [
-            '如何排查组织同步失败？',
-            'V5 和 V8 的扩展开发有哪些区别？',
-            '我想学习移动开发，应该先看哪些知识？',
-          ]"
-          :key="q"
-          :disabled="busy"
-          @click="question = q"
-        >
-          {{ q }} <ArrowRight :size="13" />
-        </button>
-      </div>
-    </div>
-    <div v-if="statusError" class="panel">
-      <p role="alert" class="error-text">{{ statusError }}</p>
-      <button class="button" @click="reloadStatus">重新检查</button>
-    </div>
-    <div
-      v-else-if="status && !status.ready"
-      class="panel assistant-unconfigured"
-    >
-      <Bot :size="23" />
-      <div>
-        <h3>模型服务尚未启用</h3>
-        <p>
-          管理员可在工作台管理配置兼容 OpenAI
-          协议的模型服务。当前仍可使用知识检索与知识链。
-        </p>
-      </div>
-      <RouterLink to="/admin" class="button">查看管理配置</RouterLink>
-    </div>
-    <form class="panel assistant-form" @submit.prevent="ask()">
-      <div class="assistant-options">
-        <label class="field"
-          >知识范围<AppSelect v-model="category">
-            <option value="">自动识别 / 全部知识</option>
-            <option
-              v-for="c in categories?.categories || []"
-              :key="c.id"
-              :value="c.id"
-            >
-              {{ c.path }}
-            </option>
-          </AppSelect></label
-        ><label class="field"
-          >使用场景<AppSelect v-model="scenario">
-            <option value="auto">智能判断</option>
-            <option v-for="(label, id) in labels" :key="id" :value="id">
-              {{ label }}
-            </option>
-          </AppSelect></label
-        ><label class="field"
-          >检索方式<AppSelect v-model="mode">
-            <option value="auto">按场景自动选择</option>
-            <option value="search">分类检索</option>
-            <option value="chain">知识链分析</option>
-          </AppSelect></label
+      <div class="assistant-heading-actions">
+        <button v-if="hasConversation" class="button" @click="clearChat">
+          <Plus :size="15" />新对话</button
+        ><RouterLink to="/graph" class="button"
+          ><Network :size="16" />知识链</RouterLink
         >
       </div>
-      <label class="sr-only" for="agent-question">知识问答问题</label
-      ><textarea
-        id="agent-question"
-        v-model="question"
-        required
-        minlength="2"
-        maxlength="1200"
-        rows="4"
-        placeholder="描述问题、产品版本与已尝试的方法…"
-        :disabled="busy"
-      />
-      <div class="assistant-submit">
-        <small
-          >只使用已发布知识。问题及相关片段会发送至管理员配置的模型服务。</small
-        ><button v-if="busy" type="button" class="button" @click="cancel">
-          停止等待</button
-        ><button
-          v-else
-          class="button primary"
-          :disabled="!status?.ready || question.trim().length < 2"
-        >
-          <Send :size="15" />开始分析
-        </button>
-      </div>
-    </form>
-    <p v-if="busy" class="assistant-thinking" role="status">
-      正在检索知识、整理关联与引用…
-    </p>
-    <p v-if="error" role="alert" class="error-text">{{ error }}</p>
-    <div v-if="answer" class="assistant-answer-grid">
-      <article class="panel assistant-answer">
-        <div class="assistant-answer-meta">
-          <span class="badge">{{ labels[answer.scenario] }}</span><span
-            class="badge"
-            >{{ answer.mode === "chain" ? "知识链分析" : "分类检索" }}</span
-          ><small>{{ answer.model }}</small>
+    </div>
+    <div class="assistant-chat-shell panel">
+      <aside class="assistant-chat-sidebar">
+        <div class="assistant-sidebar-brand">
+          <span class="assistant-avatar"><Bot :size="21" /></span>
+          <div>
+            <strong>TeamKB Agent</strong
+            ><small>{{
+              status?.ready ? "知识服务在线" : "等待模型配置"
+            }}</small>
+          </div>
         </div>
-        <h2>{{ asked }}</h2>
-        <p v-if="answer.status !== 'answered'" class="intelligence-muted">
-          本次没有生成可验证的结论。
-        </p>
-        <MarkdownContent :content="answer.answer" />
-        <p class="intelligence-muted">
-          数字引用对应右侧来源。回答中的引用可定位资料，但仍需核对具体适用版本。
-        </p>
-      </article>
-      <aside class="panel assistant-sources">
-        <h2>
-          依据与引用 <span class="badge">{{ answer.citations.length }}</span>
-        </h2>
-        <div v-for="c in answer.citations" :key="c.id" class="assistant-source">
-          <RouterLink :to="'/documents/' + encodeURIComponent(c.id)"
-            ><strong>[{{ c.number }}] {{ c.title }}</strong></RouterLink
-          ><small
-            >文档版本 v{{ c.version }} ·
-            {{ c.truncated ? "节选资料" : "完整资料" }}</small
-          >
-          <p>{{ c.excerpt }}</p>
-          <RouterLink
-            :to="{ path: '/graph', query: { doc: c.id } }"
-            class="text-link"
-            >查看知识链 →</RouterLink
-          >
+        <div class="assistant-sidebar-section">
+          <span>示例问题</span
+          ><button v-for="q in examples" :key="q" @click="question = q">
+            {{ q }}<ArrowRight :size="13" />
+          </button>
         </div>
-        <p v-if="!answer.citations.length" class="intelligence-muted">
-          没有找到相关文档。
-        </p>
-        <details v-if="answer.chain.length">
-          <summary>本次使用的 {{ answer.chain.length }} 条知识关系</summary>
-          <p v-for="e in answer.chain" :key="e.id" class="intelligence-muted">
-            {{ e.label }} ·
-            {{ e.origin === "manual" ? "人工维护" : "正文引用" }}
-          </p>
-        </details>
+        <div class="assistant-sidebar-footer">
+          <span
+            class="status-dot"
+            :class="{ online: status?.ready }"
+          />只使用已发布知识
+        </div>
       </aside>
+      <div class="assistant-chat-main">
+        <div
+          ref="scroll"
+          class="assistant-chat-messages"
+          :class="{ 'is-empty': !hasConversation }"
+        >
+          <div v-if="!hasConversation" class="assistant-chat-welcome">
+            <span class="assistant-welcome-icon"><Bot :size="30" /></span>
+            <h2>今天想了解什么？</h2>
+            <p>
+              描述问题、产品版本和已尝试的方法，我会从团队知识库中整理依据。
+            </p>
+            <div class="assistant-welcome-prompts">
+              <button v-for="q in examples" :key="q" @click="question = q">
+                {{ q }}
+              </button>
+            </div>
+          </div>
+          <template
+            v-for="(message, index) in messages"
+            :key="message.time + '-' + index"
+          >
+            <div
+              v-if="message.role === 'user'"
+              class="assistant-message user-message"
+            >
+              <span class="message-avatar"><UserRound :size="15" /></span>
+              <div class="message-bubble">{{ message.content }}</div>
+            </div>
+            <article
+              v-else-if="message.role === 'assistant'"
+              class="assistant-message assistant-message"
+            >
+              <span class="message-avatar"><Bot :size="15" /></span>
+              <div class="message-content">
+                <div class="message-bubble assistant-bubble">
+                  <div class="message-answer-badge">
+                    {{ labels[message.answer?.scenario] || "知识分析" }} ·
+                    {{
+                      message.answer?.mode === "chain"
+                        ? "知识链分析"
+                        : "分类检索"
+                    }}
+                  </div>
+                  <MarkdownContent :content="message.content" />
+                </div>
+                <div v-if="message.answer" class="message-sources">
+                  <span class="badge">{{
+                    labels[message.answer.scenario] || "知识分析"
+                  }}</span><span class="badge">{{
+                    message.answer.mode === "chain" ? "知识链分析" : "分类检索"
+                  }}</span>
+                  <details v-if="message.answer.citations?.length">
+                    <summary>
+                      查看 {{ message.answer.citations.length }} 条依据
+                    </summary>
+                    <div
+                      v-for="c in message.answer.citations"
+                      :key="c.id"
+                      class="chat-citation"
+                    >
+                      <RouterLink :to="'/documents/' + encodeURIComponent(c.id)"
+                        >[{{ c.number }}] {{ c.title }}</RouterLink
+                      ><small
+                        >v{{ c.version }} ·
+                        {{ c.truncated ? "节选资料" : "完整资料" }}</small
+                      ><RouterLink
+                        :to="{ path: '/graph', query: { doc: c.id } }"
+                        class="text-link"
+                        >查看知识链 →</RouterLink
+                      >
+                    </div>
+                  </details>
+                  <RouterLink
+                    v-if="message.answer.citations?.length"
+                    :to="{
+                      path: '/graph',
+                      query: { doc: message.answer.citations[0].id },
+                    }"
+                    class="text-link chat-chain-link"
+                    >查看知识链 →</RouterLink
+                  >
+                </div>
+              </div>
+            </article>
+            <div v-else class="assistant-message assistant-error">
+              <span class="message-avatar"><Bot :size="15" /></span>
+              <div class="message-bubble">
+                {{ message.content
+                }}<button
+                  class="text-link retry-chat"
+                  :disabled="busy"
+                  @click="retry"
+                >
+                  <RotateCcw :size="13" />重试
+                </button>
+              </div>
+            </div>
+          </template>
+          <div v-if="busy" class="assistant-message assistant-message">
+            <span class="message-avatar"><Bot :size="15" /></span>
+            <div class="message-bubble thinking-bubble">
+              <i></i><i></i><i></i><span>正在检索知识并整理依据…</span>
+            </div>
+          </div>
+        </div>
+        <div v-if="statusError" class="assistant-inline-error" role="alert">
+          {{ statusError }}
+          <button class="text-link" @click="reloadStatus">重新检查</button>
+        </div>
+        <div v-else-if="!status?.ready" class="assistant-inline-error">
+          <h3>模型服务尚未启用</h3>
+          请联系管理员在工作台管理中配置。
+        </div>
+        <p
+          v-if="error && !messages.some((m) => m.role === 'error')"
+          class="assistant-inline-error"
+          role="status"
+        >
+          {{ error }}
+        </p>
+        <form
+          class="assistant-chat-composer"
+          @submit.prevent="busy ? cancel() : ask()"
+        >
+          <div class="assistant-composer-options">
+            <AppSelect v-model="category" aria-label="知识范围"
+              ><option value="">全部知识</option>
+              <option
+                v-for="c in categories?.categories || []"
+                :key="c.id"
+                :value="c.id"
+              >
+                {{ c.path }}
+              </option></AppSelect
+            ><AppSelect v-model="mode" aria-label="检索方式"
+              ><option value="auto">智能检索</option>
+              <option value="search">分类检索</option>
+              <option value="chain">知识链分析</option></AppSelect
+            >
+          </div>
+          <textarea
+            id="agent-question"
+            v-model="question"
+            required
+            minlength="2"
+            maxlength="1200"
+            rows="2"
+            placeholder="继续提问…"
+            :disabled="busy"
+            @keydown.enter.exact="
+              !$event.isComposing &&
+              ($event.preventDefault(),
+              !busy && status?.ready && question.trim().length >= 2 && ask())
+            "
+            aria-label="知识问答问题"
+          />
+          <div class="assistant-composer-bottom">
+            <small>回答仅基于已发布团队知识，引用可展开核验</small
+            ><button v-if="busy" type="button" @click="cancel" class="button">
+              <StopCircle :size="15" />停止</button
+            ><button
+              v-else
+              type="submit"
+              class="button primary"
+              :disabled="!status?.ready || question.trim().length < 2"
+            >
+              <Send :size="15" />发送
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   </section>
 </template>

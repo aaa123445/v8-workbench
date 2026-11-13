@@ -123,21 +123,22 @@ test("cloud assistant offers grounded answer and navigable sources", async ({
   await page.goto("/#/assistant");
   await page.getByLabel("知识问答问题").fill("连接池故障怎么排查？");
   await selectOption(page, page.getByLabel("检索方式"), "chain");
-  await page.getByRole("button", { name: "开始分析" }).click();
-  await expect(page.locator(".assistant-answer")).toContainText(
+  await page.getByRole("button", { name: "发送", exact: true }).click();
+  await expect(page.locator(".assistant-bubble")).toContainText(
     "检查连接池状态",
   );
-  await expect(page.locator(".assistant-sources")).toContainText(
+  await expect(page.locator(".message-sources")).toContainText(
     "[1] 连接池故障排查",
   );
-  await expect(page.locator(".assistant-answer")).toContainText("知识链分析");
+  await expect(page.locator(".message-sources")).toContainText("知识链分析");
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+  await page.getByText("查看 2 条依据", { exact: true }).click();
   await page
-    .locator(".assistant-source")
+    .locator(".chat-citation")
     .first()
     .getByRole("link", { name: "查看知识链 →" })
     .click();
@@ -158,7 +159,9 @@ test("unconfigured assistant clearly blocks model requests", async ({
     page.getByRole("heading", { name: "模型服务尚未启用" }),
   ).toBeVisible();
   await page.getByLabel("知识问答问题").fill("如何开发接口？");
-  await expect(page.getByRole("button", { name: "开始分析" })).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "发送", exact: true }),
+  ).toBeDisabled();
 });
 
 test("Obsidian wiki links resolve documents and preserve code examples", async ({
@@ -267,4 +270,36 @@ test("empty global graph shows a useful empty state instead of loading forever",
     page.getByRole("heading", { name: "先找到一篇值得展开的知识" }),
   ).toBeVisible();
   await expect(page.getByText("正在加载全部知识链…")).toHaveCount(0);
+});
+
+test("assistant preserves multi-turn context and retries failed replies", async ({
+  page,
+}) => {
+  await page.goto("/#/assistant");
+  const input = page.getByLabel("知识问答问题");
+  await input.fill("连接池故障怎么排查？");
+  await page.getByRole("button", { name: "发送", exact: true }).click();
+  await expect(page.locator(".assistant-bubble")).toHaveCount(1);
+  let requests = [];
+  await page.route("**/api/v1/assistant/ask", (r) => {
+    requests.push(r.request().postDataJSON());
+    return r.fulfill({
+      status: 502,
+      json: { message: "模型服务拒绝访问（HTTP 403），请更换模型服务" },
+    });
+  });
+  await input.fill("接下来呢？");
+  await input.press("Enter");
+  await expect(page.locator(".assistant-error")).toContainText("403");
+  expect(requests[0].history).toHaveLength(2);
+  expect(requests[0].history[0].content).toContain("连接池故障");
+  await page.getByRole("button", { name: "重试", exact: true }).click();
+  await expect.poll(() => requests.length).toBe(2);
+  expect(requests[1].history).toHaveLength(2);
+  await expect(page.locator(".user-message")).toHaveCount(2);
+  await page.getByRole("button", { name: "新对话", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "今天想了解什么？" }),
+  ).toBeVisible();
+  await expect(page.locator(".user-message")).toHaveCount(0);
 });

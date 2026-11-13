@@ -167,7 +167,7 @@ def test_admin_model_settings_secret_protection_and_url_validation(env):
         "/api/v1/admin/assistant",
         json={
             "enabled": True,
-            "base_url": "http://169.254.169.254/latest/meta-data",
+            "base_url": "ftp://provider.example/v1",
             "model": "x",
             "api_key": "s",
         },
@@ -416,3 +416,40 @@ def test_global_graph_empty_database_has_no_synthetic_edges(env):
     add_doc(c, "standalone", "独立知识")
     result = client("reader").get("/api/v1/graph/all").json()
     assert result["nodes"] == [] and result["edges"] == []
+
+
+def test_assistant_allows_remote_http_and_forwards_followup_history(env, monkeypatch):
+    c, client, _ = env
+    add_doc(c, "kb:pool", "连接池排查", body="连接池故障先检查状态和服务日志。")
+    c.rebuild_index()
+    c.assistant.save(True, "http://provider.example:8080/v1", "test-model", "test-secret")
+    monkeypatch.setattr("httpx.Client", FakeClient)
+    monkeypatch.setattr(FakeClient, "answer", "检查连接池状态[1]。")
+    response = client("reader").post("/api/v1/assistant/ask", json={
+        "question": "接下来呢？", "history": [{"role": "user", "content": "连接池故障怎么排查？"}, {"role": "assistant", "content": "先检查状态"}]
+    })
+    assert response.status_code == 200
+    assert response.json()["status"] == "answered"
+    assert FakeClient.request[0] == "http://provider.example:8080/v1/chat/completions"
+    messages = FakeClient.request[1]["json"]["messages"]
+    assert messages[1]["content"] == "连接池故障怎么排查？"
+    assert messages[2]["role"] == "assistant"
+    assert client("reader").post("/api/v1/assistant/ask", json={"question":"测试问题", "history":[{"role":"system", "content":"bad"}]}).status_code == 422
+
+
+def test_provider_denial_preserves_actionable_error_and_redacts_secret(env, monkeypatch):
+    from server.core.knowledge import KnowledgeError
+    c, _, _ = env
+    add_doc(c, "kb:pool", "连接池排查", body="连接池故障先检查状态。")
+    c.rebuild_index()
+    c.assistant.save(True, "https://provider.example/v1", "test-model", "sensitive-test-secret")
+    class DeniedResponse:
+        status_code = 403
+        def json(self):
+            return {"error": {"message": "geographic location blocked sensitive-test-secret"}}
+    monkeypatch.setattr(FakeClient, "post", lambda *a, **kw: DeniedResponse())
+    monkeypatch.setattr("httpx.Client", FakeClient)
+    with pytest.raises(KnowledgeError) as exc:
+        c.assistant.ask("连接池故障排查")
+    assert "403" in str(exc.value) and "geographic" in str(exc.value)
+    assert "sensitive-test-secret" not in str(exc.value)
