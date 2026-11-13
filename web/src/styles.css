@@ -1,6 +1,7 @@
 /* Neutral design tokens adapted from shadcn-vue-admin (MIT).
    See THIRD_PARTY_NOTICES.md. Product accent and component CSS are customized. */
 @import "./styles/pages.css";
+@import "./styles/select.css";
 :root {
   font-family:
     Inter,
