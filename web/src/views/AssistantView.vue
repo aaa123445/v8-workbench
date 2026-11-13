@@ -45,6 +45,15 @@ const examples = [
   "我想学习移动开发，应该先看哪些知识？",
 ];
 const hasConversation = computed(() => messages.value.length > 0);
+const historyItems = computed(() =>
+  messages.value.filter((m) => m.role === "user"),
+);
+function selectHistory(item) {
+  question.value = item.content;
+  document
+    .querySelector(`[data-message-time="${item.time}"]`)
+    ?.scrollIntoView({ behavior: "smooth", block: "center" });
+}
 watch(
   () => [messages.value.length, busy.value],
   async () => {
@@ -160,11 +169,26 @@ onBeforeUnmount(() => controller?.abort());
             }}</small>
           </div>
         </div>
-        <div class="assistant-sidebar-section">
-          <span>示例问题</span
-          ><button v-for="q in examples" :key="q" @click="question = q">
-            {{ q }}<ArrowRight :size="13" />
+        <div class="assistant-sidebar-section assistant-history-section">
+          <div class="assistant-history-title">
+            <span>对话历史</span
+            ><small v-if="historyItems.length"
+              >{{ historyItems.length }} 条</small
+            >
+          </div>
+          <button
+            v-for="item in historyItems"
+            :key="item.time"
+            class="assistant-history-item"
+            @click="selectHistory(item)"
+            :title="item.content"
+          >
+            <span>{{ item.content }}</span
+            ><ArrowRight :size="13" />
           </button>
+          <p v-if="!historyItems.length" class="assistant-history-empty">
+            当前还没有对话记录
+          </p>
         </div>
         <div class="assistant-sidebar-footer">
           <span
@@ -198,6 +222,7 @@ onBeforeUnmount(() => controller?.abort());
             <div
               v-if="message.role === 'user'"
               class="assistant-message user-message"
+              :data-message-time="message.time"
             >
               <span class="message-avatar"><UserRound :size="15" /></span>
               <div class="message-bubble">{{ message.content }}</div>
@@ -219,6 +244,25 @@ onBeforeUnmount(() => controller?.abort());
                   </div>
                   <MarkdownContent :content="message.content" />
                 </div>
+                <details
+                  v-if="message.answer?.trace?.length"
+                  class="assistant-reasoning"
+                >
+                  <summary>查看分析过程</summary>
+                  <div class="assistant-trace-list">
+                    <div
+                      v-for="(step, traceIndex) in message.answer.trace"
+                      :key="traceIndex"
+                      class="assistant-trace-step"
+                    >
+                      <span>{{ traceIndex + 1 }}</span>
+                      <div>
+                        <strong>{{ step.step }}</strong
+                        ><small>{{ step.detail }}</small>
+                      </div>
+                    </div>
+                  </div>
+                </details>
                 <div v-if="message.answer" class="message-sources">
                   <span class="badge">{{
                     labels[message.answer.scenario] || "知识分析"

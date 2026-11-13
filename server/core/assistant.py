@@ -209,6 +209,12 @@ class AssistantService:
             retrieval_question = " ".join([*context_questions[-2:], question]) if len(question) < 40 else question
             result = self.evidence(retrieval_question, category_id, scenario, mode)
             excerpts = result.pop("excerpts")
+            result["trace"] = [
+                {"step": "检索范围", "detail": (result["category_id"] and f"限定分类：{result['category_id']}" or "使用全部已发布知识")},
+                {"step": "场景判断", "detail": f"{result['scenario']} · {'沿知识链扩展' if result['mode'] == 'chain' else '按相关度检索'}"},
+                {"step": "证据筛选", "detail": f"命中 {len(result['citations'])} 篇文档，按当前问题截取相关段落"},
+                {"step": "关系校验", "detail": f"发现 {len(result['chain'])} 条已确认关系" if result['chain'] else "本轮没有使用额外知识关系"},
+            ]
             if not excerpts:
                 return {
                     **result,
@@ -292,6 +298,7 @@ class AssistantService:
                     "status": "unsupported",
                     "model": conf["model"],
                 }
+            result["trace"].append({"step": "回答校验", "detail": f"确认引用编号均来自本轮 {len(result['citations'])} 篇证据"})
             return {
                 **result,
                 "answer": answer,
