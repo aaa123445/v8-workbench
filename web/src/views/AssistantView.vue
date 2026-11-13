@@ -1,4 +1,5 @@
 <script setup>
+import AppSelect from "../components/ui/AppSelect.vue";
 import { ref, onBeforeUnmount, watch } from "vue";
 import { Bot, Send, Network, ArrowRight } from "lucide-vue-next";
 import { api, post } from "../services/api";
@@ -118,7 +119,7 @@ const labels = {
     <form class="panel assistant-form" @submit.prevent="ask()">
       <div class="assistant-options">
         <label class="field"
-          >知识范围<select v-model="category">
+          >知识范围<AppSelect v-model="category">
             <option value="">自动识别 / 全部知识</option>
             <option
               v-for="c in categories?.categories || []"
@@ -127,20 +128,20 @@ const labels = {
             >
               {{ c.path }}
             </option>
-          </select></label
+          </AppSelect></label
         ><label class="field"
-          >使用场景<select v-model="scenario">
+          >使用场景<AppSelect v-model="scenario">
             <option value="auto">智能判断</option>
             <option v-for="(label, id) in labels" :key="id" :value="id">
               {{ label }}
             </option>
-          </select></label
+          </AppSelect></label
         ><label class="field"
-          >检索方式<select v-model="mode">
+          >检索方式<AppSelect v-model="mode">
             <option value="auto">按场景自动选择</option>
             <option value="search">分类检索</option>
             <option value="chain">知识链分析</option>
-          </select></label
+          </AppSelect></label
         >
       </div>
       <label class="sr-only" for="agent-question">知识问答问题</label

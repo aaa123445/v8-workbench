@@ -57,7 +57,11 @@ onMounted(async () => {
     :is="route.meta.layout === 'public' ? PublicLayout : WorkspaceLayout"
     :online="online"
     ><RouterView v-slot="{ Component }"
-      ><component :is="Component" /></RouterView></component
+      ><Transition name="page" mode="out-in"
+        ><div :key="route.path" class="route-page">
+          <component
+            :is="Component"
+          /></div></Transition></RouterView></component
   ><KeyDialog /><ConfirmDialog /><Transition name="toast"
     ><div v-if="notice" class="toast" :class="notice.kind" role="status">
       <CircleAlert v-if="notice.kind === 'error'" :size="19" /><CheckCircle2

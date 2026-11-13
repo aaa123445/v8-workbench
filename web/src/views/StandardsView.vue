@@ -1,4 +1,5 @@
 <script setup>
+import AppSelect from "../components/ui/AppSelect.vue";
 import { ask } from "../composables/confirmation";
 import { ref, reactive } from "vue";
 import { api } from "../services/api";
@@ -99,11 +100,11 @@ async function remove(r) {
         <label class="field"
           >规范名称<input v-model="form.name" required maxlength="120" /></label
         ><label class="field"
-          >适用分类<select v-model="form.category_id">
+          >适用分类<AppSelect v-model="form.category_id">
             <option v-for="c in cats?.categories" :key="c.id" :value="c.id">
               {{ c.path }}
             </option>
-          </select></label
+          </AppSelect></label
         >
       </div>
       <label class="field"

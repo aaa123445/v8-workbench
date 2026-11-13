@@ -1,4 +1,5 @@
 <script setup>
+import AppSelect from "../components/ui/AppSelect.vue";
 import { ref, computed, watch, onBeforeUnmount } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -276,7 +277,7 @@ const totalPages = computed(() =>
           </form>
           <div class="library-toolbar-actions">
             <label class="sort-control"
-              ><SlidersHorizontal :size="14" /><select
+              ><SlidersHorizontal :size="14" /><AppSelect
                 :value="sort"
                 aria-label="知识排序"
                 @change="filter({ sort: $event.target.value })"
@@ -284,7 +285,7 @@ const totalPages = computed(() =>
                 <option value="updated">最近更新</option>
                 <option value="title">标题排序</option>
                 <option value="oldest">最早更新</option>
-              </select></label
+              </AppSelect></label
             >
             <div class="view-toggle" aria-label="知识显示方式">
               <button

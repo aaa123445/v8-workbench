@@ -30,7 +30,7 @@
   margin-bottom: 0;
 }
 .call-log-filter-grid input,
-.call-log-filter-grid select {
+.call-log-filter-grid :is(select, .app-select) {
   min-height: 41px;
 }
 .call-log-table {
@@ -107,7 +107,7 @@
   align-items: center;
   gap: 7px;
 }
-.call-log-pagination select {
+.call-log-pagination :is(select, .app-select) {
   padding: 5px 8px;
   font-size: 11px;
 }
@@ -240,7 +240,7 @@
   .call-log-filter-grid .field {
     font-size: 11px;
   }
-  .call-log-filter-grid select,
+  .call-log-filter-grid :is(select, .app-select),
   .call-log-filter-grid input {
     font-size: 11px;
     padding: 10px 8px;

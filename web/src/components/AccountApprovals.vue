@@ -1,4 +1,5 @@
 <script setup>
+import AppSelect from "./ui/AppSelect.vue";
 import { ask } from "../composables/confirmation";
 import { computed, reactive, ref } from "vue";
 import { UsersRound, RefreshCw } from "lucide-vue-next";
@@ -113,14 +114,14 @@ async function review(user, status) {
         </div>
         <div class="approval-controls">
           <label class="field"
-            >账号权限<select
+            >账号权限<AppSelect
               v-model="drafts[user.id].role"
               :aria-label="`账号权限 ${user.username}`"
             >
               <option value="reader">只读成员 · reader</option>
               <option value="writer">读写成员 · writer</option>
               <option value="admin">管理员 · admin</option>
-            </select></label
+            </AppSelect></label
           ><label class="field"
             >审批说明<input
               v-model="drafts[user.id].note"

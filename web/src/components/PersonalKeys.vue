@@ -1,4 +1,5 @@
 <script setup>
+import AppSelect from "./ui/AppSelect.vue";
 import { ask } from "../composables/confirmation";
 import { useRouter } from "vue-router";
 import { handoffConnectionKey } from "../composables/connection";
@@ -157,11 +158,11 @@ async function copy() {
           maxlength="80"
           placeholder="例如：我的 Codex / 办公电脑 CLI" /></label
       ><label class="field"
-        >Key 权限<select v-model="role">
+        >Key 权限<AppSelect v-model="role">
           <option v-for="item in roles" :key="item" :value="item">
             {{ item }}
           </option>
-        </select></label
+        </AppSelect></label
       ><button class="button primary" :disabled="busy || !name.trim()">
         <LoaderCircle v-if="busy" class="spin" :size="16" /><Plus
           v-else

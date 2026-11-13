@@ -14,7 +14,7 @@
   font-size: 12px;
   padding-left: 0;
 }
-.chain-page .graph-controls select {
+.chain-page .graph-controls :is(select, .app-select) {
   border-color: #ebe7f0;
   background-color: #fcfbfd;
   font-size: 11px;
@@ -284,7 +284,7 @@
   .chain-page .graph-workspace {
     grid-template-columns: minmax(0, 1fr) 235px;
   }
-  .chain-page .graph-controls select {
+  .chain-page .graph-controls :is(select, .app-select) {
     max-width: 170px;
   }
 }
@@ -295,7 +295,7 @@
   .chain-page .graph-detail {
     max-height: none;
   }
-  .chain-page .graph-controls select {
+  .chain-page .graph-controls :is(select, .app-select) {
     max-width: 100%;
   }
   .chain-page .graph-controls form {

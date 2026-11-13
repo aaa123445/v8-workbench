@@ -44,7 +44,7 @@ body {
 }
 button,
 input,
-select,
+:is(select, .app-select),
 textarea {
   font: inherit;
 }
@@ -102,14 +102,14 @@ a,
 button,
 input,
 textarea,
-select {
+:is(select, .app-select) {
   outline-offset: 4px;
 }
 :focus-visible {
   outline: 2px solid var(--primary);
 }
 input,
-select,
+:is(select, .app-select),
 textarea {
   border: 1px solid var(--input);
   border-radius: 8px;
@@ -124,7 +124,7 @@ textarea::placeholder {
 }
 input:focus,
 textarea:focus,
-select:focus {
+:is(select, .app-select):focus {
   outline: 0;
   border-color: #ada5ff;
   box-shadow: 0 0 0 3px #635bff10;
@@ -442,7 +442,7 @@ textarea {
   color: #5d6578;
 }
 .field input,
-.field select {
+.field :is(select, .app-select) {
   width: 100%;
   font-size: 13px;
   font-weight: 400;
@@ -652,7 +652,7 @@ td strong {
     font-size: 12px;
   }
   .field input,
-  .field select {
+  .field :is(select, .app-select) {
     font-size: 13px;
   }
   .two-columns {

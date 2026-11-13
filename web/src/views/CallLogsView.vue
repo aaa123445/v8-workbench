@@ -1,4 +1,5 @@
 <script setup>
+import AppSelect from "../components/ui/AppSelect.vue";
 import { ref, reactive, computed } from "vue";
 import {
   Activity,
@@ -160,7 +161,7 @@ function resize() {
         </div>
         <div class="call-log-filter-grid">
           <label class="field"
-            >调用类型<select v-model="draft.operation" @change="apply">
+            >调用类型<AppSelect v-model="draft.operation" @change="apply">
               <option value="">全部类型</option>
               <option
                 v-for="(label, value) in operations"
@@ -169,9 +170,9 @@ function resize() {
               >
                 {{ label }}
               </option>
-            </select></label
+            </AppSelect></label
           ><label class="field"
-            >调用来源<select v-model="draft.client" @change="apply">
+            >调用来源<AppSelect v-model="draft.client" @change="apply">
               <option value="">全部来源</option>
               <option
                 v-for="(label, value) in clients"
@@ -180,9 +181,9 @@ function resize() {
               >
                 {{ label }}
               </option>
-            </select></label
+            </AppSelect></label
           ><label class="field"
-            >调用状态<select v-model="draft.outcome" @change="apply">
+            >调用状态<AppSelect v-model="draft.outcome" @change="apply">
               <option value="">全部状态</option>
               <option
                 v-for="(label, value) in outcomes"
@@ -191,14 +192,14 @@ function resize() {
               >
                 {{ label }}
               </option>
-            </select></label
+            </AppSelect></label
           ><label class="field"
-            >使用 Key<select v-model="draft.key_prefix" @change="apply">
+            >使用 Key<AppSelect v-model="draft.key_prefix" @change="apply">
               <option value="">全部凭据</option>
               <option v-for="key in data?.keys || []" :key="key" :value="key">
                 {{ key }}
               </option>
-            </select></label
+            </AppSelect></label
           ><label class="field"
             >开始日期<input
               v-model="draft.from"
@@ -327,14 +328,14 @@ function resize() {
         <div v-if="data?.total" class="call-log-pagination">
           <span>共 {{ data.total }} 条 · 第 {{ page }} / {{ pages }} 页</span
           ><label
-            >每页<select
+            >每页<AppSelect
               v-model.number="pageSize"
               aria-label="每页日志条数"
               @change="resize"
             >
               <option :value="10">10</option>
               <option :value="20">20</option>
-              <option :value="50">50</option></select
+              <option :value="50">50</option></AppSelect
             >条</label
           ><button
             class="button small"

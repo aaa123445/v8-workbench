@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { selectOption } from "./select-helper";
 const categories = [{ id: "backend", name: "后端", path: "技术开发 / 后端" }];
 const nodes = [
   {
@@ -100,8 +101,8 @@ test("knowledge graph supports scenario, backlinks, navigation and manual links"
   await page.getByRole("button", { name: "适应图谱", exact: true }).click();
   await page.getByRole("button", { name: "选择知识：事务回滚方案" }).click();
   await expect(page.locator(".graph-detail")).toContainText("来自");
-  await page.getByLabel("知识链使用场景").selectOption("troubleshoot");
-  await page.getByLabel("知识链深度").selectOption("2");
+  await selectOption(page, page.getByLabel("知识链使用场景"), "troubleshoot");
+  await selectOption(page, page.getByLabel("知识链深度"), "2");
   await page.getByRole("button", { name: "建立明确关系", exact: true }).click();
   await page.getByLabel("目标文档 ID").fill("doc:two");
   const req = page.waitForRequest(
@@ -121,7 +122,7 @@ test("cloud assistant offers grounded answer and navigable sources", async ({
 }) => {
   await page.goto("/#/assistant");
   await page.getByLabel("知识问答问题").fill("连接池故障怎么排查？");
-  await page.getByLabel("检索方式").selectOption("chain");
+  await selectOption(page, page.getByLabel("检索方式"), "chain");
   await page.getByRole("button", { name: "开始分析" }).click();
   await expect(page.locator(".assistant-answer")).toContainText(
     "检查连接池状态",

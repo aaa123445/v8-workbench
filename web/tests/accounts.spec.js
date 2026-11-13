@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { selectOption } from "./select-helper";
 const pendingUser = {
   id: "u1",
   username: "alice",
@@ -130,10 +131,14 @@ test("账号登录后只能选择获准角色，个人 Key 可创建和吊销", 
     page.getByRole("heading", { name: "我的 API Key" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("combobox", { name: "Key 权限" }).locator("option"),
-  ).toHaveCount(2);
+    page.getByRole("combobox", { name: "Key 权限" }),
+  ).toHaveAttribute("data-option-count", "2");
   await page.getByRole("textbox", { name: "Key 名称" }).fill("我的 Codex");
-  await page.getByRole("combobox", { name: "Key 权限" }).selectOption("writer");
+  await selectOption(
+    page,
+    page.getByRole("combobox", { name: "Key 权限" }),
+    "writer",
+  );
   await page.getByRole("button", { name: "创建个人 Key" }).click();
   await expect(page.locator(".new-key-box")).toContainText(
     "test-personal-secret-once",

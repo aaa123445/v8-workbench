@@ -1,4 +1,5 @@
 <script setup>
+import AppSelect from "../components/ui/AppSelect.vue";
 import { ask } from "../composables/confirmation";
 import { reactive, ref } from "vue";
 import { api } from "../services/api";
@@ -66,7 +67,7 @@ async function remove(c) {
           <label class="field"
             >名称<input v-model="form.name" required maxlength="60" /></label
           ><label class="field"
-            >上级分类<select v-model="form.parent_id">
+            >上级分类<AppSelect v-model="form.parent_id">
               <option value="">顶级分类</option>
               <option
                 v-for="c in data?.categories?.filter((c) => c.id !== form.id)"
@@ -75,7 +76,7 @@ async function remove(c) {
               >
                 {{ c.path }}
               </option>
-            </select></label
+            </AppSelect></label
           >
           <div class="kb-actions">
             <button class="button primary" :disabled="busy">保存</button

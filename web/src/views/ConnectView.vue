@@ -1,4 +1,5 @@
 <script setup>
+import AppSelect from "../components/ui/AppSelect.vue";
 import {
   computed,
   ref,
@@ -221,12 +222,12 @@ onBeforeUnmount(() => {
               <label class="field"
                 >名称<input v-model="keyName" required maxlength="80" /></label
               ><label class="field"
-                >权限<select v-model="role">
+                >权限<AppSelect v-model="role">
                   <option value="reader">reader · 检索与阅读</option>
                   <option v-if="canWrite" value="writer">
                     writer · 可提交经验
                   </option>
-                </select></label
+                </AppSelect></label
               ><button class="button" :disabled="creating || !keyName.trim()">
                 <LoaderCircle
                   v-if="creating"

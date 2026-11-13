@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { selectOption } from "./select-helper";
 const entries = Array.from({ length: 25 }, (_, i) => ({
   id: 100 + i,
   operation: i % 3 === 0 ? "read" : "search",
@@ -99,9 +100,11 @@ test("个人日志统计、分页与筛选正常", async ({ page }) => {
   await expect(page.locator(".call-log-pagination")).toContainText(
     "第 2 / 2 页",
   );
-  await page
-    .getByRole("combobox", { name: "调用状态", exact: true })
-    .selectOption("failed");
+  await selectOption(
+    page,
+    page.getByRole("combobox", { name: "调用状态", exact: true }),
+    "failed",
+  );
   await expect(page.locator(".call-log-list .badge").first()).toHaveText(
     "1 条",
   );
@@ -109,9 +112,11 @@ test("个人日志统计、分页与筛选正常", async ({ page }) => {
     "第 1 / 1 页",
   );
   await page.getByRole("button", { name: "重置", exact: true }).click();
-  await page
-    .getByRole("combobox", { name: "调用来源", exact: true })
-    .selectOption("cli");
+  await selectOption(
+    page,
+    page.getByRole("combobox", { name: "调用来源", exact: true }),
+    "cli",
+  );
   await expect(page.locator(".call-log-list .badge").first()).toHaveText(
     "12 条",
   );

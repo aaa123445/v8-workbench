@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { selectOption } from "./select-helper";
 const categories = [
   {
     id: "technology",
@@ -103,7 +104,7 @@ test("分类浏览、草稿提交、审核与版本入口", async ({ page }) => 
   });
   await page.goto("/#/contribute");
   await page.getByRole("textbox", { name: "知识标题" }).fill(doc.title);
-  await page.getByLabel("知识分类").selectOption("backend");
+  await selectOption(page, page.getByLabel("知识分类"), "backend");
   await page.locator("#knowledge-content").fill(doc.content);
   await page.getByRole("button", { name: "保存草稿", exact: true }).click();
   await expect(page.locator(".success-banner")).toContainText("草稿已保存");

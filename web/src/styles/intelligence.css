@@ -22,7 +22,7 @@
   flex: 1;
   min-width: 0;
 }
-.graph-controls select {
+.graph-controls :is(select, .app-select) {
   max-width: 220px;
   font-size: 12px;
 }
@@ -409,7 +409,7 @@
   .knowledge-graph {
     min-height: 260px;
   }
-  .graph-controls select {
+  .graph-controls :is(select, .app-select) {
     flex: 1;
     max-width: 100%;
     min-width: 100px;

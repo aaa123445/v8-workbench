@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { selectOption } from "./select-helper";
 const doc = {
   id: "kb:ui",
   title: "连接池排查与验证方案",
@@ -93,7 +94,11 @@ test("知识视图持久保存，筛选可清除且排序发送到服务器", as
       r.url().includes("/library?") &&
       new URL(r.url()).searchParams.get("sort") === "title",
   );
-  await page.getByRole("combobox", { name: "知识排序" }).selectOption("title");
+  await selectOption(
+    page,
+    page.getByRole("combobox", { name: "知识排序" }),
+    "title",
+  );
   await request;
   await page.getByRole("textbox", { name: "筛选知识" }).fill("事务");
   await expect(page).toHaveURL(/q=/);

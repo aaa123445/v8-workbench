@@ -1,4 +1,5 @@
 <script setup>
+import AppSelect from "../components/ui/AppSelect.vue";
 import {
   reactive,
   ref,
@@ -243,11 +244,11 @@ async function template() {
         />
         <div class="form-row">
           <label class="field"
-            >知识分类<select v-model="form.category_id">
+            >知识分类<AppSelect v-model="form.category_id">
               <option v-for="c in categories" :key="c.id" :value="c.id">
                 {{ c.path }}
               </option>
-            </select></label
+            </AppSelect></label
           ><label class="field"
             >标签<input v-model="form.tags" placeholder="部署, Nginx, 网络"
           /></label>

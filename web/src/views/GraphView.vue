@@ -1,4 +1,5 @@
 <script setup>
+import AppSelect from "../components/ui/AppSelect.vue";
 import {
   ref,
   computed,
@@ -220,7 +221,7 @@ onBeforeUnmount(() => {
           maxlength="300"
         /><button class="button primary">查找</button>
       </form>
-      <select v-model="category" aria-label="图谱分类范围">
+      <AppSelect v-model="category" aria-label="图谱分类范围">
         <option value="">全部分类</option>
         <option
           v-for="c in taxonomy?.categories || []"
@@ -228,15 +229,15 @@ onBeforeUnmount(() => {
           :value="c.id"
         >
           {{ c.path }}
-        </option></select
-      ><select v-model="scenario" aria-label="知识链使用场景">
+        </option></AppSelect
+      ><AppSelect v-model="scenario" aria-label="知识链使用场景">
         <option v-for="(label, id) in scenarios" :key="id" :value="id">
           {{ label }}
-        </option></select
-      ><select v-model="depth" aria-label="知识链深度">
+        </option></AppSelect
+      ><AppSelect v-model="depth" aria-label="知识链深度">
         <option :value="1">一跳关联</option>
         <option :value="2">两跳关联</option>
-      </select>
+      </AppSelect>
     </div>
     <div v-if="matches.length" class="panel graph-search-results">
       <button v-for="d in matches" :key="d.id" @click="center(d.id)">
@@ -489,11 +490,11 @@ onBeforeUnmount(() => {
               maxlength="200"
               placeholder="从推荐关联选择，或粘贴文档 ID" /></label
           ><label class="field"
-            >关系类型<select v-model="relation">
+            >关系类型<AppSelect v-model="relation">
               <option v-for="(label, id) in kinds" :key="id" :value="id">
                 {{ label }}
               </option>
-            </select></label
+            </AppSelect></label
           ><label class="field"
             >关联说明<input
               v-model="note"

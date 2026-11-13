@@ -1,4 +1,5 @@
 <script setup>
+import AppSelect from "../components/ui/AppSelect.vue";
 import { ask } from "../composables/confirmation";
 import { ref } from "vue";
 import {
@@ -226,11 +227,11 @@ async function copy() {
                 required
                 placeholder="例如：开发团队 Agent" /></label
             ><label class="field"
-              >权限角色<select v-model="role">
+              >权限角色<AppSelect v-model="role">
                 <option value="reader">reader · 只读</option>
                 <option value="writer">writer · 读写</option>
                 <option value="admin">admin · 管理员</option>
-              </select></label
+              </AppSelect></label
             ><button
               class="button primary"
               :disabled="createBusy || !name.trim()"

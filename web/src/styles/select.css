@@ -1,32 +1,182 @@
-/* One shared disclosure icon for native single-select controls. Keep the
-   browser's real select/popup and leave listboxes and multiple selects alone.
-   Attribute specificity protects icon space from compact page padding rules. */
-select:not([multiple]):not([size]),
-select:not([multiple])[size="1"] {
-  -webkit-appearance: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 16px 16px;
-  padding-inline-end: 38px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+/* Shared custom select: the options panel is teleported out of clipping parents. */
+.app-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--input);
+  border-radius: 8px;
+  padding: 11px 13px;
+  background-color: #fff;
+  color: #303746;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
+  transition:
+    border-color 160ms,
+    box-shadow 160ms,
+    background-color 160ms;
 }
-
-select:not([multiple]):not([size]):disabled,
-select:not([multiple])[size="1"]:disabled {
+.app-select:hover:not(:disabled) {
+  border-color: #b7afcf;
+}
+.app-select:focus-visible,
+.app-select.is-open {
+  outline: none;
+  border-color: #a69cff;
+  box-shadow: 0 0 0 3px #635bff12;
+}
+.app-select:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
-
-/* Let high-contrast users keep the OS control and its visible native arrow. */
-@media (forced-colors: active) {
-  select:not([multiple]):not([size]),
-  select:not([multiple])[size="1"] {
-    -webkit-appearance: auto;
-    appearance: auto;
-    background-image: none;
-    padding-inline-end: 13px;
+.app-select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-select-value.is-placeholder {
+  color: #9299a6;
+}
+.app-select-chevron {
+  flex-shrink: 0;
+  color: #8b849b;
+  transition: transform 180ms;
+}
+.app-select.is-open .app-select-chevron {
+  transform: rotate(180deg);
+}
+.app-select-panel {
+  position: fixed;
+  z-index: 3000;
+  padding: 5px;
+  border: 1px solid #e9e5f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow:
+    0 12px 40px #25203f1a,
+    0 2px 8px #25203f08;
+  color: #414054;
+  font-size: 13px;
+}
+.app-select-options {
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #ddd6e9 transparent;
+}
+.app-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 38px;
+  padding: 9px 11px;
+  border-radius: 7px;
+  cursor: pointer;
+  line-height: 1.5;
+  transition: background-color 100ms;
+}
+.app-select-option > span {
+  overflow-wrap: anywhere;
+}
+.app-select-option.is-active {
+  background: #f5f2fa;
+}
+.app-select-option.is-selected {
+  color: #6e50ad;
+  font-weight: 500;
+  background: #f1ebfa;
+}
+.app-select-option[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.app-select-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 9px 8px;
+  margin-bottom: 5px;
+  border-bottom: 1px solid #f0edf5;
+  color: #9a91a9;
+}
+.app-select-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  font-size: 12px;
+}
+.app-select-search input:focus {
+  box-shadow: none;
+}
+.app-select-empty {
+  padding: 22px 12px;
+  text-align: center;
+  color: #9290a1;
+  font-size: 12px;
+}
+.select-popover-enter-active,
+.select-popover-leave-active {
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+.select-popover-enter-from,
+.select-popover-leave-to {
+  opacity: 0;
+  transform: scale(0.97) translateY(-3px);
+}
+.route-page {
+  min-width: 0;
+}
+.page-enter-active {
+  transition:
+    opacity 180ms ease-out,
+    transform 180ms ease-out;
+}
+.page-leave-active {
+  transition:
+    opacity 100ms ease-in,
+    transform 100ms ease-in;
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(7px);
+}
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-3px);
+}
+@media (max-width: 640px) {
+  .app-select-option {
+    min-height: 42px;
+  }
+  .app-select-panel {
+    border-radius: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-select,
+  .app-select-chevron,
+  .app-select-option,
+  .select-popover-enter-active,
+  .select-popover-leave-active,
+  .page-enter-active,
+  .page-leave-active {
+    transition: none;
+  }
+  .page-enter-from,
+  .page-leave-to,
+  .select-popover-enter-from,
+  .select-popover-leave-to {
+    transform: none;
   }
 }

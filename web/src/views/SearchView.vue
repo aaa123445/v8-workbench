@@ -1,4 +1,5 @@
 <script setup>
+import AppSelect from "../components/ui/AppSelect.vue";
 import { ref, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -135,7 +136,7 @@ if (query.value.trim()) search();
       </form>
       <label class="kb-search-category"
         >分类范围
-        <select v-model="category" @change="query.trim() && search()">
+        <AppSelect v-model="category" @change="query.trim() && search()">
           <option value="">全部分类</option>
           <option
             v-for="c in categoryData?.categories"
@@ -144,7 +145,7 @@ if (query.value.trim()) search();
           >
             {{ c.path }}
           </option>
-        </select></label
+        </AppSelect></label
       >
       <div class="suggestions">
         <span>试试搜索</span
