@@ -96,10 +96,13 @@ test("knowledge graph supports scenario, backlinks, navigation and manual links"
   await expect(
     page.getByRole("button", { name: "选择知识：连接池故障排查" }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "放大图谱", exact: true }).click();
+  await page.getByRole("button", { name: "适应图谱", exact: true }).click();
   await page.getByRole("button", { name: "选择知识：事务回滚方案" }).click();
   await expect(page.locator(".graph-detail")).toContainText("来自");
   await page.getByLabel("知识链使用场景").selectOption("troubleshoot");
   await page.getByLabel("知识链深度").selectOption("2");
+  await page.getByRole("button", { name: "建立明确关系", exact: true }).click();
   await page.getByLabel("目标文档 ID").fill("doc:two");
   const req = page.waitForRequest(
     (r) => r.url().endsWith("/graph/links") && r.method() === "POST",
@@ -194,4 +197,36 @@ test("Obsidian wiki links resolve documents and preserve code examples", async (
   );
   await expect(page.locator(".prose")).toContainText("[[同名文档]]");
   await expect(page.locator("pre")).toContainText("[[事务回滚方案]]");
+});
+
+test("unlinked documents stay independent and similarity is optional reading", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/graph*", (route) =>
+    route.fulfill({
+      json: {
+        center: "doc:one",
+        nodes: [nodes[0]],
+        edges: [],
+        suggestions: [
+          { id: "doc:three", title: "部署连接池", reason: "关键词相似" },
+        ],
+        categories,
+      },
+    }),
+  );
+  await page.goto("/#/graph?doc=doc%3Aone");
+  await expect(
+    page.getByRole("heading", { name: "这篇知识可以独立阅读" }),
+  ).toBeVisible();
+  await expect(page.getByRole("img", { name: "知识关系图谱" })).toHaveCount(0);
+  await expect(page.locator(".graph-suggestion")).toHaveCount(0);
+  await page.getByRole("button", { name: "可能相关", exact: true }).click();
+  await expect(page.locator(".graph-suggestion")).toContainText("部署连接池");
+  await expect(page.getByRole("img", { name: "知识关系图谱" })).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
 });

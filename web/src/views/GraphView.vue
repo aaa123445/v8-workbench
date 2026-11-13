@@ -7,14 +7,16 @@ import {
   ArrowRight,
   Plus,
   Trash2,
-  ZoomIn,
-  ZoomOut,
+  FileText,
+  ChevronDown,
 } from "lucide-vue-next";
 import { api, post } from "../services/api";
 import { notify } from "../composables/workspace";
 import { currentUser, hasAccess } from "../composables/session";
 import { useResource } from "../composables/useResource";
 import "../styles/intelligence.css";
+import KnowledgeCanvas from "../components/graph/KnowledgeCanvas.vue";
+import "../styles/knowledge-chain.css";
 const route = useRoute(),
   router = useRouter();
 const query = ref(""),
@@ -25,8 +27,9 @@ const query = ref(""),
   error = ref("");
 const depth = ref(1),
   scenario = ref("explore"),
-  category = ref(""),
-  zoom = ref(1);
+  category = ref("");
+const showPossible = ref(false),
+  showEditor = ref(false);
 const { data: taxonomy } = useResource(() => api("/categories"));
 const canWrite = computed(
   () =>
@@ -52,43 +55,18 @@ const scenarios = {
   compare: "方案对比",
   learn: "学习路线",
 };
-const palette = [
-  "#465fff",
-  "#875bf7",
-  "#12a389",
-  "#df8c24",
-  "#dc5c87",
-  "#4579ca",
-];
 const nodeMap = computed(() =>
-  Object.fromEntries(
-    (graph.value?.nodes || []).map((n, i, all) => {
-      const angle =
-        ((i - 1) * Math.PI * 2) / Math.max(1, all.length - 1) - Math.PI / 2;
-      const radius = all.length > 12 && i % 2 ? 155 : 245;
-      return [
-        n.id,
-        {
-          ...n,
-          x: i === 0 ? 450 : 450 + Math.cos(angle) * radius,
-          y: i === 0 ? 310 : 310 + Math.sin(angle) * radius,
-          color:
-            palette[
-              Math.max(
-                0,
-                (graph.value.categories || []).findIndex(
-                  (c) => c.id === n.category_id,
-                ),
-              ) % palette.length
-            ],
-        },
-      ];
-    }),
+  Object.fromEntries((graph.value?.nodes || []).map((n) => [n.id, n])),
+);
+const confirmedEdges = computed(() =>
+  (graph.value?.edges || []).filter((e) =>
+    ["manual", "reference"].includes(e.origin),
   ),
 );
+const hasChain = computed(() => confirmedEdges.value.length > 0);
 const selectedNode = computed(() => nodeMap.value[selected.value]);
 const selectedEdges = computed(() =>
-  (graph.value?.edges || []).filter(
+  confirmedEdges.value.filter(
     (e) => e.source_id === selected.value || e.target_id === selected.value,
   ),
 );
@@ -112,7 +90,10 @@ function center(id) {
 }
 async function load() {
   const id = String(route.query.doc || "");
-  if (!id) return;
+  if (!id) {
+    graph.value = null;
+    return;
+  }
   graphController?.abort();
   const controller = new AbortController();
   graphController = controller;
@@ -130,6 +111,7 @@ async function load() {
       { signal: controller.signal },
     );
     selected.value = id;
+    matches.value = [];
   } catch (e) {
     if (e.name !== "AbortError") {
       error.value = e.message;
@@ -178,16 +160,16 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-  <section class="intelligence-page">
+  <section class="intelligence-page chain-page">
     <div class="page-heading">
       <div>
-        <div class="eyebrow section-eyebrow">CONNECTED KNOWLEDGE</div>
+        <div class="eyebrow section-eyebrow">KNOWLEDGE CONNECTIONS</div>
         <h1>知识链</h1>
-        <p>从一篇知识出发，沿引用、前置知识与解决方案探索上下文。</p>
+        <p>在需要串联思路时，沿真实引用与明确关系展开阅读。</p>
       </div>
-      <RouterLink to="/assistant" class="button primary"
-        >让智能体分析 <ArrowRight :size="15"
-      /></RouterLink>
+      <RouterLink to="/library" class="button"
+        ><FileText :size="15" />浏览知识库</RouterLink
+      >
     </div>
     <div class="panel graph-controls">
       <form @submit.prevent="search">
@@ -228,113 +210,47 @@ onBeforeUnmount(() => {
     </p>
     <div v-if="graph" class="graph-workspace">
       <div class="panel graph-canvas-panel">
-        <div class="graph-canvas-heading">
-          <span
-            ><Network :size="17" />{{ graph.nodes.length }} 篇知识 ·
-            {{ graph.edges.length }} 条关系</span
-          >
+        <div class="chain-canvas-top">
           <div>
-            <button
-              class="icon-button"
-              aria-label="缩小图谱"
-              @click="zoom = Math.max(0.6, zoom - 0.15)"
-            >
-              <ZoomOut :size="17" /></button
-            ><button
-              class="icon-button"
-              aria-label="放大图谱"
-              @click="zoom = Math.min(1.7, zoom + 0.15)"
-            >
-              <ZoomIn :size="17" />
-            </button>
+            <span class="chain-mini-label">LOCAL GRAPH</span>
+            <h2>{{ graph.nodes.find((n) => n.id === graph.center)?.title }}</h2>
           </div>
-        </div>
-        <svg
-          class="knowledge-graph"
-          viewBox="0 0 900 620"
-          aria-label="知识关系图谱"
-          role="img"
-        >
-          <defs>
-            <marker
-              id="graph-arrow"
-              markerWidth="8"
-              markerHeight="8"
-              refX="20"
-              refY="4"
-              orient="auto"
-            >
-              <path d="M0,0 L8,4 L0,8" fill="#b6c1d4" />
-            </marker>
-          </defs>
-          <g
-            :transform="`translate(${450 * (1 - zoom)} ${310 * (1 - zoom)}) scale(${zoom})`"
+          <span class="chain-count"
+            >{{ confirmedEdges.length }} 条明确关系</span
           >
-            <line
-              v-for="edge in graph.edges"
-              :key="edge.id"
-              :x1="nodeMap[edge.source_id]?.x"
-              :y1="nodeMap[edge.source_id]?.y"
-              :x2="nodeMap[edge.target_id]?.x"
-              :y2="nodeMap[edge.target_id]?.y"
-              :class="[
-                'graph-edge',
-                edge.origin,
-                {
-                  highlight:
-                    edge.source_id === selected || edge.target_id === selected,
-                },
-              ]"
-              marker-end="url(#graph-arrow)"
-            >
-              <title>
-                {{ edge.label }} ·
-                {{ edge.origin === "manual" ? "人工维护" : "正文引用" }}
-              </title>
-            </line>
-            <g
-              v-for="node in nodeMap"
-              :key="node.id"
-              class="graph-node"
-              :transform="`translate(${node.x} ${node.y})`"
-              role="button"
-              tabindex="0"
-              :aria-label="'选择知识：' + node.title"
-              :aria-pressed="selected === node.id"
-              @click="selected = node.id"
-              @keydown.enter="selected = node.id"
-              @keydown.space.prevent="selected = node.id"
-            >
-              <circle
-                :r="node.id === graph.center ? 24 : 15"
-                :fill="node.color"
-                :class="{ selected: selected === node.id }"
-              />
-              <text y="42" text-anchor="middle">
-                {{
-                  node.title.length > 16
-                    ? node.title.slice(0, 16) + "…"
-                    : node.title
-                }}
-              </text>
-              <title>{{ node.title }}</title>
-            </g>
-          </g>
-        </svg>
-        <div class="graph-legend">
-          <span><i />人工维护关系</span><span><i class="dashed" />正文引用</span
-          ><span>箭头表示源文档 → 关联目标</span>
         </div>
-        <p v-if="graph.edges.length === 0" class="intelligence-muted">
-          暂无已确认关系。可从推荐关联中选文档，人工建立知识链。
-        </p>
-        <p v-if="graph.truncated" class="intelligence-muted">
-          当前显示最多 24 个节点，请切换中心继续探索。
+        <KnowledgeCanvas
+          v-if="hasChain"
+          :graph="graph"
+          :selected="selected"
+          @select="selected = $event"
+        />
+        <div v-else class="chain-standalone">
+          <span class="chain-single-icon"><FileText :size="30" /></span
+          ><span class="chain-mini-label">STANDALONE KNOWLEDGE</span>
+          <h2>这篇知识可以独立阅读</h2>
+          <p>
+            目前没有明确引用或人工确认的关系。没有关联也没关系，不需要为了形成图谱而连接。
+          </p>
+          <RouterLink
+            :to="'/documents/' + encodeURIComponent(graph.center)"
+            class="button primary"
+            >阅读这篇知识 <ArrowRight :size="14" /></RouterLink
+          ><button v-if="canWrite" class="text-link" @click="showEditor = true">
+            有明确关系时，再建立关联
+          </button>
+        </div>
+        <div v-if="hasChain" class="graph-legend">
+          <span><i />人工确认</span><span><i class="dashed" />正文引用</span
+          ><span>箭头表示引用或关系方向</span>
+        </div>
+        <p v-if="hasChain && graph.truncated" class="intelligence-muted">
+          当前显示最多 24 个节点，可切换中心继续阅读。
         </p>
       </div>
       <aside class="graph-detail panel">
         <template v-if="selectedNode"
-          ><span class="eyebrow">SELECTED KNOWLEDGE</span>
+          ><span class="eyebrow">知识详情</span>
           <h2>{{ selectedNode.title }}</h2>
           <p class="intelligence-muted">
             {{
@@ -356,7 +272,9 @@ onBeforeUnmount(() => {
               以此为中心
             </button>
           </div>
-          <h3>正向与反向关联</h3>
+          <h3>
+            明确关联 <span class="badge">{{ selectedEdges.length }}</span>
+          </h3>
           <div v-for="e in selectedEdges" :key="e.id" class="graph-relation">
             <small
               >{{ e.origin === "manual" ? "人工维护" : "正文引用" }} ·
@@ -384,22 +302,24 @@ onBeforeUnmount(() => {
             </button>
           </div>
           <p v-if="!selectedEdges.length" class="intelligence-muted">
-            该文档尚无引用或人工关系。
+            没有明确关联，保留为独立知识。
           </p></template
         >
       </aside>
     </div>
     <div v-else-if="!busy" class="panel graph-empty">
-      <Network :size="44" />
-      <h2>让零散的知识连接起来</h2>
+      <span class="chain-empty-icon"><Network :size="36" /></span>
+      <span class="chain-mini-label">FIND YOUR THREAD</span>
+      <h2>先找到一篇值得展开的知识</h2>
       <p>
-        先搜索并选择一篇知识。文档中的 [[标题]]、[[文档ID]]
-        和站内文档链接会自动形成双向引用。
+        搜索问题、方案或文档标题。有明确引用的知识会自然形成链路，独立文档保持独立。
       </p>
       <RouterLink to="/library" class="button">浏览知识库</RouterLink>
     </div>
     <section
-      v-if="graph?.reading_order?.length > 1"
+      v-if="
+        hasChain && scenario !== 'explore' && graph?.reading_order?.length > 1
+      "
       class="panel graph-reading-order"
     >
       <h2>{{ scenarios[scenario] }} · 建议阅读顺序</h2>
@@ -414,11 +334,27 @@ onBeforeUnmount(() => {
         </li>
       </ol>
     </section>
-    <div v-if="graph" class="graph-bottom">
-      <section class="panel">
-        <h2>推荐关联 <span class="badge">待确认</span></h2>
+    <div v-if="graph" class="chain-secondary-actions">
+      <button
+        class="button small"
+        :aria-expanded="showPossible"
+        @click="showPossible = !showPossible"
+      >
+        <Search :size="14" />可能相关 <ChevronDown :size="13" /></button
+      ><button
+        v-if="canWrite"
+        class="button small"
+        :aria-expanded="showEditor"
+        @click="showEditor = !showEditor"
+      >
+        <Plus :size="14" />建立明确关系</button
+      ><span>相似内容不会自动成为知识链</span>
+    </div>
+    <div v-if="graph && (showPossible || showEditor)" class="graph-bottom">
+      <section v-if="showPossible" class="panel">
+        <h2>可能相关 <span class="badge">仅供参考</span></h2>
         <p class="intelligence-muted">
-          基于关键词匹配推荐，不代表已确认关系或因果。
+          仅按关键词检索，未连入图谱。请先阅读，确有关系时再手动确认。
         </p>
         <div
           v-for="d in graph.suggestions"
@@ -430,7 +366,14 @@ onBeforeUnmount(() => {
           }}</RouterLink><small>{{ d.reason }}</small>
           <div class="inline-actions">
             <button class="text-link" @click="center(d.id)">探索</button
-            ><button v-if="canWrite" class="text-link" @click="target = d.id">
+            ><button
+              v-if="canWrite"
+              class="text-link"
+              @click="
+                target = d.id;
+                showEditor = true;
+              "
+            >
               选择关联
             </button>
           </div>
@@ -439,7 +382,7 @@ onBeforeUnmount(() => {
           暂无足够相似的知识。
         </p>
       </section>
-      <section v-if="canWrite" class="panel">
+      <section v-if="canWrite && showEditor" class="panel">
         <h2><Plus :size="17" />建立知识关系</h2>
         <p class="intelligence-muted">
           从当前中心文档指向目标；“前置知识”表示学习中心文档前应先读目标文档。

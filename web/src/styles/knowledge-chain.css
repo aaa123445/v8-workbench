@@ -1,0 +1,327 @@
+.chain-page .page-heading {
+  margin-bottom: 25px;
+}
+.chain-page .graph-controls {
+  padding: 14px 16px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px #29334a02;
+  gap: 10px;
+}
+.chain-page .graph-controls form input {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  font-size: 12px;
+  padding-left: 0;
+}
+.chain-page .graph-controls select {
+  border-color: #ebe7f0;
+  background-color: #fcfbfd;
+  font-size: 11px;
+  border-radius: 8px;
+}
+.chain-page .graph-controls .button {
+  padding: 9px 17px;
+  font-size: 11px;
+}
+.chain-page .graph-workspace {
+  grid-template-columns: minmax(0, 1fr) 270px;
+  gap: 20px;
+}
+.chain-page .graph-canvas-panel {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+}
+.chain-canvas-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 6px 2px 18px;
+}
+.chain-mini-label {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.13em;
+  color: #a09aa9;
+  font-weight: 500;
+}
+.chain-canvas-top h2 {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #51495d;
+  margin: 5px 0 0;
+  font-weight: 550;
+}
+.chain-count {
+  font-size: 10px;
+  background: #eeebf4;
+  border: 1px solid #e6e0ee;
+  padding: 5px 9px;
+  border-radius: 6px;
+  color: #8c7ca0;
+  white-space: nowrap;
+}
+.chain-page .graph-detail {
+  border-radius: 13px;
+  border-color: #eae6ee;
+  background: #fff;
+  padding: 23px 20px;
+  max-height: 640px;
+}
+.chain-page .graph-detail .eyebrow {
+  letter-spacing: 0.05em;
+  color: #a397ad;
+}
+.chain-page .graph-detail h2 {
+  font-size: 16px;
+  font-weight: 550;
+  color: #4c4358;
+  margin: 16px 0 10px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.chain-page .graph-detail .button {
+  font-size: 11px;
+  border-color: #e9e4ee;
+}
+.chain-page .graph-detail h3 {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  color: #8b8096;
+  font-size: 11px;
+  font-weight: 500;
+  border-top: 1px solid #f0edf3;
+  padding-top: 22px;
+  margin-top: 24px;
+}
+.chain-page .graph-relation {
+  gap: 9px;
+  border-bottom-color: #f2eff5;
+}
+.chain-page .graph-relation .text-link {
+  font-size: 12px;
+  color: #8062a6;
+  text-align: left;
+  line-height: 1.7;
+}
+.chain-page .graph-relation small {
+  font-size: 9px;
+  color: #a79dae;
+}
+.chain-page .graph-relation .icon-button {
+  height: 24px;
+  width: 24px;
+  color: #b8b0c0;
+}
+.chain-page .graph-legend {
+  padding: 14px 3px;
+  gap: 20px;
+  color: #a298ad;
+  font-size: 9px;
+}
+.chain-page .graph-legend i {
+  border-color: #b3a2cd;
+}
+.chain-page .graph-legend i.dashed {
+  border-color: #c0c9d4;
+}
+.chain-standalone {
+  min-height: 420px;
+  box-sizing: border-box;
+  border: 1px dashed #e3dce9;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #fcfafec9, #f7f6fa);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 42px 30px;
+}
+.chain-single-icon {
+  display: grid;
+  place-items: center;
+  width: 70px;
+  height: 78px;
+  border-radius: 18px;
+  color: #a38cbe;
+  background: #f0eaf7;
+  box-shadow: 0 8px 25px #8d70ae0a;
+  margin-bottom: 24px;
+  transform: rotate(-5deg);
+}
+.chain-standalone h2 {
+  font-size: 20px;
+  font-weight: 500;
+  color: #665773;
+  margin: 12px 0 0;
+}
+.chain-standalone p {
+  max-width: 390px;
+  font-size: 12px;
+  line-height: 1.9;
+  color: #a195aa;
+  margin: 15px 0 24px;
+}
+.chain-standalone .text-link {
+  font-size: 10px;
+  margin-top: 17px;
+  color: #9d8aac;
+}
+.chain-page .button.primary {
+  background: #8a70af;
+  border-color: #8a70af;
+  box-shadow: 0 3px 8px #8a70af15;
+}
+.chain-page .button.primary:hover {
+  background: #7d619f;
+}
+.chain-secondary-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 20px 0 0;
+  border-top: 1px solid #ece8f0;
+  padding-top: 20px;
+  flex-wrap: wrap;
+}
+.chain-secondary-actions > .button {
+  font-size: 11px;
+  color: #8e7c9f;
+  border-color: #e7e0ed;
+  background: #fcfafd;
+  gap: 7px;
+}
+.chain-secondary-actions > span {
+  font-size: 10px;
+  color: #b0a7b7;
+  margin-left: auto;
+}
+.chain-page .graph-bottom {
+  margin-top: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.chain-page .graph-bottom .panel {
+  border-color: #eae4f0;
+  border-radius: 12px;
+}
+.chain-page .graph-bottom h2 {
+  color: #7d6b8e;
+  font-weight: 500;
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+.chain-page .graph-empty {
+  border: 1px dashed #e3dce9;
+  background: linear-gradient(145deg, #fcfbfe, #f8f6fb);
+  border-radius: 16px;
+  padding: 80px 25px 75px;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+}
+.chain-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 25px;
+  background: #efe9f7;
+  color: #a58bbe;
+  margin-bottom: 25px;
+  box-shadow: 0 10px 35px #8164a014;
+}
+.chain-page .graph-empty h2 {
+  font-weight: 500;
+  color: #6e5d7b;
+  font-size: 22px;
+  margin: 15px 0 0;
+}
+.chain-page .graph-empty p {
+  font-size: 12px;
+  color: #a497ae;
+  max-width: 430px;
+  line-height: 1.9;
+  margin: 18px auto 27px;
+}
+.chain-page .graph-empty .button {
+  color: #8f79a1;
+  border-color: #e1d7ea;
+  font-size: 12px;
+  padding: 10px 22px;
+}
+.chain-page .graph-search-results {
+  border-color: #e8e0f0;
+  max-height: 280px;
+  overflow: auto;
+}
+.chain-page .graph-search-results button {
+  font-size: 12px;
+  border-radius: 7px;
+}
+.chain-page .graph-search-results button:hover {
+  background: #f7f1fc;
+}
+.chain-page .graph-reading-order {
+  border-color: #eae4f0;
+}
+.chain-page .graph-reading-order h2 {
+  font-weight: 500;
+  color: #837093;
+}
+.chain-page .graph-reading-order ol {
+  color: #9984ad;
+  font-size: 11px;
+}
+.chain-page .graph-reading-order a {
+  color: #806993;
+}
+@media (max-width: 1000px) {
+  .chain-page .graph-workspace {
+    grid-template-columns: minmax(0, 1fr) 235px;
+  }
+  .chain-page .graph-controls select {
+    max-width: 170px;
+  }
+}
+@media (max-width: 800px) {
+  .chain-page .graph-workspace {
+    grid-template-columns: 1fr;
+  }
+  .chain-page .graph-detail {
+    max-height: none;
+  }
+  .chain-page .graph-controls select {
+    max-width: 100%;
+  }
+  .chain-page .graph-controls form {
+    min-width: 100%;
+  }
+  .chain-page .graph-bottom {
+    grid-template-columns: 1fr;
+  }
+  .chain-secondary-actions > span {
+    width: 100%;
+    margin-left: 0;
+  }
+  .chain-standalone {
+    min-height: 360px;
+    padding: 35px 20px;
+  }
+  .chain-canvas-top {
+    margin-top: 8px;
+  }
+  .chain-page .graph-empty {
+    padding: 60px 20px;
+  }
+  .chain-page .graph-empty h2 {
+    font-size: 19px;
+  }
+  .chain-count {
+    font-size: 9px;
+  }
+}

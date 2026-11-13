@@ -46,3 +46,11 @@ permissions remain authoritative. Full license texts ship in the website's
   existing authentication, accessible command search, responsive reading and
   editing layouts. Tailwind utility styles are translated into project CSS.
   No template demo data, analytics or external fonts are included.
+
+## relation-graph (knowledge-chain visualization)
+
+- Repository: https://github.com/seeksdream/relation-graph (now https://github.com/relation-graph/relation-graph).
+- Installed package: `relation-graph-vue3` 2.2.11, MIT license.
+- Copyright and full license: [relation-graph MIT](public/licenses/relation-graph.txt).
+- Used: Vue 3 graph renderer, center layout, node dragging, canvas panning and zoom controls.
+- Our adaptation: custom document cards, a quiet lavender knowledge workspace, explicit relation styling, independent-document state, accessible node buttons and separate optional related-reading list. Similarity suggestions never become graph edges automatically.
