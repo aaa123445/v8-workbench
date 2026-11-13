@@ -44,6 +44,7 @@ _URL_SECRET = re.compile(
 
 OPERATIONS = {
     ("GET", "/api/v1/graph"): "graph",
+    ("GET", "/api/v1/graph/all"): "graph",
     ("POST", "/api/v1/graph/links"): "link",
     ("POST", "/api/v1/classify"): "classify",
     ("POST", "/api/v1/assistant/ask"): "ask",

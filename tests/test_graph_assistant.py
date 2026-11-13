@@ -391,3 +391,28 @@ def test_learning_order_prioritizes_prerequisites(env):
         .json()
     )
     assert [n["id"] for n in result["reading_order"]] == ["basic", "advanced"]
+
+
+def test_global_graph_collects_disconnected_chains_and_excludes_unlinked_docs(env):
+    c, client, _ = env
+    add_doc(c, "first", "第一组引用", body="文档参考 [[second]]。")
+    add_doc(c, "second", "第一组目标")
+    add_doc(c, "third", "第二组引用", category="frontend", body="文档参考 [[fourth]]。")
+    add_doc(c, "fourth", "第二组目标", category="frontend")
+    add_doc(c, "unlinked", "无关但标题相似的第一组知识")
+    result = client("reader").get("/api/v1/graph/all")
+    assert result.status_code == 200
+    data = result.json()
+    assert {n["id"] for n in data["nodes"]} == {"first", "second", "third", "fourth"}
+    assert len(data["edges"]) == 2
+    assert all(e["origin"] == "reference" for e in data["edges"])
+    subset = client("reader").get("/api/v1/graph/all?category_id=backend").json()
+    assert {n["id"] for n in subset["nodes"]} == {"first", "second"}
+    assert len(subset["edges"]) == 1
+
+
+def test_global_graph_empty_database_has_no_synthetic_edges(env):
+    c, client, _ = env
+    add_doc(c, "standalone", "独立知识")
+    result = client("reader").get("/api/v1/graph/all").json()
+    assert result["nodes"] == [] and result["edges"] == []

@@ -44,6 +44,10 @@ def register_graph(app, principal, need, get_container):
     def agent():
         return get_container().assistant
 
+    @app.get("/api/v1/graph/all")
+    def all_graph(category_id: str = "", p=Depends(principal)):
+        return GraphService(get_container()).all_graph(category_id)
+
     @app.get("/api/v1/graph")
     def graph(
         doc_id: str = Query(..., max_length=200),

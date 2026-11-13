@@ -1,5 +1,12 @@
 <script setup>
-import { ref, computed, watch, onBeforeUnmount } from "vue";
+import {
+  ref,
+  computed,
+  watch,
+  onBeforeUnmount,
+  defineAsyncComponent,
+  h,
+} from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   Network,
@@ -11,11 +18,34 @@ import {
   ChevronDown,
 } from "lucide-vue-next";
 import { api, post } from "../services/api";
-import { notify } from "../composables/workspace";
+import { notify, authVersion } from "../composables/workspace";
 import { currentUser, hasAccess } from "../composables/session";
 import { useResource } from "../composables/useResource";
 import "../styles/intelligence.css";
-import KnowledgeCanvas from "../components/graph/KnowledgeCanvas.vue";
+const KnowledgeCanvas = defineAsyncComponent({
+  loader: () => import("../components/graph/KnowledgeCanvas.vue"),
+  delay: 0,
+  timeout: 15000,
+  loadingComponent: {
+    render: () =>
+      h(
+        "div",
+        { class: "chain-render-notice", role: "status" },
+        "正在加载图谱组件…",
+      ),
+  },
+  errorComponent: {
+    render: () =>
+      h("div", { class: "chain-render-notice", role: "alert" }, [
+        h("p", "图谱资源加载失败，可先使用下方关系列表。"),
+        h(
+          "button",
+          { class: "button", onClick: () => location.reload() },
+          "刷新重试",
+        ),
+      ]),
+  },
+});
 import "../styles/knowledge-chain.css";
 const route = useRoute(),
   router = useRouter();
@@ -31,6 +61,13 @@ const depth = ref(1),
 const showPossible = ref(false),
   showEditor = ref(false);
 const { data: taxonomy } = useResource(() => api("/categories"));
+const showingAll = computed(() => !route.query.doc);
+const displayGraph = computed(() => graph.value);
+const displayEdges = computed(() =>
+  (graph.value?.edges || []).filter((e) =>
+    ["manual", "reference"].includes(e.origin),
+  ),
+);
 const canWrite = computed(
   () =>
     hasAccess.value &&
@@ -90,10 +127,6 @@ function center(id) {
 }
 async function load() {
   const id = String(route.query.doc || "");
-  if (!id) {
-    graph.value = null;
-    return;
-  }
   graphController?.abort();
   const controller = new AbortController();
   graphController = controller;
@@ -101,16 +134,18 @@ async function load() {
   error.value = "";
   try {
     graph.value = await api(
-      "/graph?" +
-        new URLSearchParams({
-          doc_id: id,
-          category_id: category.value,
-          depth: depth.value,
-          scenario: scenario.value,
-        }),
+      id
+        ? "/graph?" +
+            new URLSearchParams({
+              doc_id: id,
+              category_id: category.value,
+              depth: depth.value,
+              scenario: scenario.value,
+            })
+        : "/graph/all?" + new URLSearchParams({ category_id: category.value }),
       { signal: controller.signal },
     );
-    selected.value = id;
+    selected.value = id || graph.value.center;
     matches.value = [];
   } catch (e) {
     if (e.name !== "AbortError") {
@@ -121,7 +156,7 @@ async function load() {
     if (graphController === controller) busy.value = false;
   }
 }
-watch([() => route.query.doc, depth, scenario, category], load, {
+watch([() => route.query.doc, depth, scenario, category, authVersion], load, {
   immediate: true,
 });
 async function save() {
@@ -167,9 +202,13 @@ onBeforeUnmount(() => {
         <h1>知识链</h1>
         <p>在需要串联思路时，沿真实引用与明确关系展开阅读。</p>
       </div>
-      <RouterLink to="/library" class="button"
-        ><FileText :size="15" />浏览知识库</RouterLink
-      >
+      <div class="inline-actions">
+        <RouterLink v-if="!showingAll" to="/graph" class="button"
+          >返回全库知识链</RouterLink
+        ><RouterLink to="/library" class="button"
+          ><FileText :size="15" />浏览知识库</RouterLink
+        >
+      </div>
     </div>
     <div class="panel graph-controls">
       <form @submit.prevent="search">
@@ -208,24 +247,73 @@ onBeforeUnmount(() => {
     <p v-if="busy" class="intelligence-muted" role="status">
       正在整理知识关系…
     </p>
-    <div v-if="graph" class="graph-workspace">
+    <section
+      v-if="showingAll && busy"
+      class="panel chain-entrypoints"
+      role="status"
+    >
+      <h2>正在加载全部知识链…</h2>
+      <p class="intelligence-muted">只整理明确引用和人工确认关系。</p>
+    </section>
+    <section
+      v-if="showingAll && error"
+      class="panel chain-entrypoints"
+      role="alert"
+    >
+      <h2>知识链加载失败</h2>
+      <p>{{ error }}</p>
+      <button class="button small" @click="load">重新加载</button>
+    </section>
+    <section
+      v-if="showingAll && graph?.nodes?.length"
+      class="panel chain-all-note"
+    >
+      <span class="chain-mini-label">ALL CONFIRMED CONNECTIONS</span
+      ><strong>全库知识链</strong
+      ><span
+        >{{ graph.nodes.length }} 篇知识 ·
+        {{ displayEdges.length }} 条明确关系</span
+      ><small>只展示正文引用和人工确认关系，相似内容不会自动连入。</small>
+    </section>
+    <div v-if="displayGraph?.nodes?.length" class="graph-workspace">
       <div class="panel graph-canvas-panel">
         <div class="chain-canvas-top">
           <div>
-            <span class="chain-mini-label">LOCAL GRAPH</span>
-            <h2>{{ graph.nodes.find((n) => n.id === graph.center)?.title }}</h2>
+            <span class="chain-mini-label">{{
+              showingAll ? "GLOBAL GRAPH" : "LOCAL GRAPH"
+            }}</span>
+            <h2>
+              {{
+                showingAll
+                  ? "全库知识链"
+                  : graph.nodes.find((n) => n.id === graph.center)?.title
+              }}
+            </h2>
           </div>
-          <span class="chain-count"
-            >{{ confirmedEdges.length }} 条明确关系</span
-          >
+          <span class="chain-count">{{ displayEdges.length }} 条明确关系</span>
         </div>
         <KnowledgeCanvas
-          v-if="hasChain"
-          :graph="graph"
-          :selected="selected"
+          v-if="displayEdges.length"
+          :key="showingAll ? 'global' : graph.center"
+          :graph="displayGraph"
+          :global-view="showingAll"
+          :selected="selected || displayGraph.center"
           @select="selected = $event"
         />
-        <div v-else class="chain-standalone">
+        <details v-if="displayEdges.length" class="chain-accessible-list">
+          <summary>查看关系列表（{{ displayEdges.length }} 条）</summary>
+          <div v-for="edge in confirmedEdges" :key="edge.id">
+            <RouterLink
+              :to="'/documents/' + encodeURIComponent(edge.source_id)"
+              >{{ nodeMap[edge.source_id]?.title }}</RouterLink><span
+              >{{ edge.label }} →</span
+            ><RouterLink
+              :to="'/documents/' + encodeURIComponent(edge.target_id)"
+              >{{ nodeMap[edge.target_id]?.title }}</RouterLink
+            >
+          </div>
+        </details>
+        <div v-if="!hasChain" class="chain-standalone">
           <span class="chain-single-icon"><FileText :size="30" /></span
           ><span class="chain-mini-label">STANDALONE KNOWLEDGE</span>
           <h2>这篇知识可以独立阅读</h2>
@@ -245,7 +333,7 @@ onBeforeUnmount(() => {
           ><span>箭头表示引用或关系方向</span>
         </div>
         <p v-if="hasChain && graph.truncated" class="intelligence-muted">
-          当前显示最多 24 个节点，可切换中心继续阅读。
+          当前仅显示部分节点，请缩小分类范围或选择文档继续阅读。
         </p>
       </div>
       <aside class="graph-detail panel">
@@ -265,7 +353,7 @@ onBeforeUnmount(() => {
               class="button small"
               >阅读原文</RouterLink
             ><button
-              v-if="selectedNode.id !== graph.center"
+              v-if="showingAll || selectedNode.id !== graph.center"
               class="button small"
               @click="center(selectedNode.id)"
             >
@@ -307,7 +395,10 @@ onBeforeUnmount(() => {
         >
       </aside>
     </div>
-    <div v-else-if="!busy" class="panel graph-empty">
+    <div
+      v-else-if="!displayGraph?.nodes?.length && !busy"
+      class="panel graph-empty"
+    >
       <span class="chain-empty-icon"><Network :size="36" /></span>
       <span class="chain-mini-label">FIND YOUR THREAD</span>
       <h2>先找到一篇值得展开的知识</h2>
@@ -334,7 +425,7 @@ onBeforeUnmount(() => {
         </li>
       </ol>
     </section>
-    <div v-if="graph" class="chain-secondary-actions">
+    <div v-if="graph && !showingAll" class="chain-secondary-actions">
       <button
         class="button small"
         :aria-expanded="showPossible"
@@ -342,7 +433,7 @@ onBeforeUnmount(() => {
       >
         <Search :size="14" />可能相关 <ChevronDown :size="13" /></button
       ><button
-        v-if="canWrite"
+        v-if="canWrite && !showingAll"
         class="button small"
         :aria-expanded="showEditor"
         @click="showEditor = !showEditor"
@@ -350,7 +441,10 @@ onBeforeUnmount(() => {
         <Plus :size="14" />建立明确关系</button
       ><span>相似内容不会自动成为知识链</span>
     </div>
-    <div v-if="graph && (showPossible || showEditor)" class="graph-bottom">
+    <div
+      v-if="graph && !showingAll && (showPossible || showEditor)"
+      class="graph-bottom"
+    >
       <section v-if="showPossible" class="panel">
         <h2>可能相关 <span class="badge">仅供参考</span></h2>
         <p class="intelligence-muted">

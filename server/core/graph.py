@@ -168,6 +168,35 @@ class GraphService:
     def node(d):
         return {k: d[k] for k in ("id", "title", "category_id", "knowledge_version")}
 
+    def all_graph(self, category_id="", limit=5000):
+        catalog = self._catalog(category_id)
+        edges = self._edges(catalog)
+        # Only documents participating in an explicit/reference relation enter the graph.
+        connected = {e["source_id"] for e in edges} | {e["target_id"] for e in edges}
+        if not connected:
+            return {
+                "center": "",
+                "nodes": [],
+                "edges": [],
+                "suggestions": [],
+                "categories": self.c.knowledge.categories(),
+                "truncated": False,
+            }
+        ordered = sorted(connected, key=lambda ident: (catalog[ident]["title"], ident))
+        truncated = len(ordered) > limit
+        allowed = set(ordered[:limit])
+        selected_edges = [
+            e for e in edges if e["source_id"] in allowed and e["target_id"] in allowed
+        ]
+        return {
+            "center": ordered[0],
+            "nodes": [self.node(catalog[x]) for x in ordered[:limit]],
+            "edges": selected_edges,
+            "suggestions": [],
+            "categories": self.c.knowledge.categories(),
+            "truncated": truncated,
+        }
+
     def neighborhood(self, doc_id, category_id="", depth=1, scenario="explore"):
         catalog = self._catalog(category_id)
         if doc_id not in catalog:

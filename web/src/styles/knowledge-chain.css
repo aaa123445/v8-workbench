@@ -325,3 +325,113 @@
     font-size: 9px;
   }
 }
+.chain-entrypoints {
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.chain-entrypoints h2 {
+  font-size: 15px;
+  font-weight: 500;
+  color: #796587;
+  margin: 0 0 10px;
+}
+.chain-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+.chain-entry-grid button {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 9px;
+  text-align: left;
+  padding: 18px;
+  background: #fcfaff;
+  border: 1px solid #e9e0f0;
+  border-radius: 10px;
+  color: #8e76a6;
+  cursor: pointer;
+}
+.chain-entry-grid strong {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.7;
+}
+.chain-entry-grid span {
+  grid-column: 2;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #b1a3ba;
+}
+.chain-accessible-list {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid #ebe5f0;
+  border-radius: 10px;
+  font-size: 11px;
+  color: #8b789b;
+}
+.chain-accessible-list summary {
+  cursor: pointer;
+}
+.chain-accessible-list > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  line-height: 1.9;
+  padding-top: 13px;
+}
+.chain-accessible-list a {
+  color: #80629e;
+}
+.chain-accessible-list span {
+  color: #b0a3b9;
+}
+.chain-render-notice {
+  padding: 60px 25px;
+  text-align: center;
+  min-height: 260px;
+  box-sizing: border-box;
+  border: 1px solid #e9e0ef;
+  border-radius: 14px;
+  background: #faf7fd;
+  color: #9d86af;
+  font-size: 12px;
+}
+.chain-render-notice p {
+  margin-bottom: 20px;
+}
+.chain-all-note {
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  border-color: #e9e1ef;
+}
+.chain-all-note strong {
+  font-weight: 500;
+  font-size: 14px;
+  color: #806997;
+}
+.chain-all-note > span:not(.chain-mini-label) {
+  font-size: 11px;
+  color: #aa98b7;
+}
+.chain-all-note small {
+  font-size: 10px;
+  color: #b4a7bd;
+  margin-left: auto;
+}
+@media (max-width: 800px) {
+  .chain-all-note .chain-mini-label {
+    width: 100%;
+  }
+  .chain-all-note small {
+    width: 100%;
+    margin-left: 0;
+  }
+}

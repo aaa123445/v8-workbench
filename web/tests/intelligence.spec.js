@@ -46,7 +46,7 @@ test.beforeEach(async ({ page }) => {
     if (path.endsWith("/stats"))
       data = { documents: 2, by_source: { manual: 2 } };
     if (path.endsWith("/search")) data = { results: nodes, count: 2 };
-    if (path.endsWith("/graph"))
+    if (path.endsWith("/graph") || path.endsWith("/graph/all"))
       data = {
         center: "doc:one",
         nodes,
@@ -229,4 +229,41 @@ test("unlinked documents stay independent and similarity is optional reading", a
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+});
+
+test("opening the graph menu loads every explicitly connected document", async ({
+  page,
+}) => {
+  await page.goto("/#/graph");
+  await expect(
+    page.getByRole("heading", { name: "全库知识链", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".kb-graph-card")).toHaveCount(2);
+  await expect(page.locator(".graph-detail")).toContainText("问题与解法");
+  await expect(page.locator(".chain-all-note")).toContainText("2 篇知识");
+  await expect(page.locator(".chain-all-note")).toContainText(
+    "相似内容不会自动连入",
+  );
+});
+
+test("empty global graph shows a useful empty state instead of loading forever", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/graph/all*", (route) =>
+    route.fulfill({
+      json: {
+        center: "",
+        nodes: [],
+        edges: [],
+        suggestions: [],
+        categories: [],
+        truncated: false,
+      },
+    }),
+  );
+  await page.goto("/#/graph");
+  await expect(
+    page.getByRole("heading", { name: "先找到一篇值得展开的知识" }),
+  ).toBeVisible();
+  await expect(page.getByText("正在加载全部知识链…")).toHaveCount(0);
 });

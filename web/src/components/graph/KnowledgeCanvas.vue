@@ -6,6 +6,7 @@ import {
   onMounted,
   ref,
   watch,
+  onErrorCaptured,
 } from "vue";
 import RelationGraph from "relation-graph-vue3";
 import {
@@ -19,6 +20,7 @@ import {
 const props = defineProps({
   graph: { type: Object, required: true },
   selected: String,
+  globalView: Boolean,
 });
 const emit = defineEmits(["select"]);
 const canvas = ref(null),
@@ -52,7 +54,7 @@ const options = {
   backgroundColor: "transparent",
   layouts: [
     {
-      layoutName: "center",
+      layoutName: props.globalView ? "circle" : "center",
       distance_coefficient: 0.85,
       levelDistance: "210,190,170",
     },
@@ -67,13 +69,29 @@ const categoryMap = computed(() =>
   ),
 );
 let generation = 0,
-  observer;
+  observer,
+  timeout;
+function markFailure() {
+  ready.value = false;
+  failure.value = "图谱未能正常显示，可以重新布局或使用下方关系列表。";
+}
+onErrorCaptured(() => {
+  markFailure();
+  return false;
+});
 async function draw() {
   const current = ++generation;
   await nextTick();
-  if (!canvas.value) return;
+  if (!canvas.value) {
+    markFailure();
+    return;
+  }
   ready.value = false;
   failure.value = "";
+  clearTimeout(timeout);
+  timeout = setTimeout(() => {
+    if (current === generation && !ready.value) markFailure();
+  }, 10000);
   const validIds = new Set(props.graph.nodes.map((n) => n.id));
   const edges = props.graph.edges.filter(
     (e) =>
@@ -83,7 +101,7 @@ async function draw() {
   );
   const linked = new Set(edges.flatMap((e) => [e.source_id, e.target_id]));
   try {
-    await canvas.value.setJsonData({
+    await instance().setJsonData({
       rootId: props.graph.center,
       nodes: props.graph.nodes
         .filter((n) => n.id === props.graph.center || linked.has(n.id))
@@ -94,7 +112,7 @@ async function draw() {
             ...n,
             category: categoryMap.value[n.category_id]?.name || "知识文档",
             color: categoryMap.value[n.category_id]?.color || colors[0],
-            isCenter: n.id === props.graph.center,
+            isCenter: !props.globalView && n.id === props.graph.center,
           },
           width: 176,
           height: 76,
@@ -113,7 +131,10 @@ async function draw() {
         data: e,
       })),
     });
-    if (current === generation) ready.value = true;
+    if (current === generation) {
+      ready.value = true;
+      clearTimeout(timeout);
+    }
   } catch (e) {
     if (current === generation) failure.value = "图谱暂时无法加载，请重试";
   }
@@ -142,6 +163,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   generation++;
   observer?.disconnect();
+  clearTimeout(timeout);
   instance()?.stopAutoLayout?.();
 });
 </script>
