@@ -1,4 +1,9 @@
 export const operations = {
+  graph: "知识链浏览",
+  link: "建立知识关系",
+  unlink: "删除知识关系",
+  classify: "智能分类建议",
+  ask: "云端智能体问答",
   propose: "贡献提交",
   review: "贡献审核",
   rollback: "版本回滚",

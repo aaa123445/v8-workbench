@@ -15,6 +15,7 @@ from ..config import Settings, get_settings
 from .db import Database
 from .docs import DocRepo
 from .knowledge import KnowledgeService
+from .assistant import AssistantService
 from .index import SearchIndex
 
 
@@ -41,6 +42,7 @@ class Container:
         self.auth.ensure_bootstrap_admin(self.settings.bootstrap_admin_key)
         self._rebuild_lock = threading.Lock()
         self.knowledge = KnowledgeService(self)
+        self.assistant = AssistantService(self)
         self.index.rebuild()
 
     def rebuild_index(self) -> int:

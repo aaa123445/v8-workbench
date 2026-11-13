@@ -3,6 +3,16 @@ const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     {
+      path: "/graph",
+      component: () => import("./views/GraphView.vue"),
+      meta: { title: "知识链", section: "知识空间" },
+    },
+    {
+      path: "/assistant",
+      component: () => import("./views/AssistantView.vue"),
+      meta: { title: "云端智能体", section: "知识空间" },
+    },
+    {
       path: "/connect",
       component: () => import("./views/ConnectView.vue"),
       meta: { title: "一键接入", section: "连接与管理" },

@@ -13,6 +13,8 @@ import {
   Plus,
   Activity,
   PlugZap,
+  Network,
+  Bot,
 } from "lucide-vue-next";
 import { post } from "../../services/api";
 import { hasAccess } from "../../composables/session";
@@ -29,6 +31,8 @@ const root = ref(null),
   error = ref(""),
   active = ref(0);
 const shortcuts = [
+  { title: "打开知识链", path: "/graph", icon: Network },
+  { title: "向云端智能体提问", path: "/assistant", icon: Bot },
   { title: "一键接入本地 Agent", path: "/connect", icon: PlugZap },
   { title: "浏览团队知识库", path: "/library", icon: BookOpen },
   { title: "贡献一份新知识", path: "/contribute", icon: Plus },

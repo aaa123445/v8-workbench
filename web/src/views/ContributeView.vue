@@ -20,6 +20,7 @@ import {
   LoaderCircle,
 } from "lucide-vue-next";
 import { confirmAction } from "../composables/confirmation";
+import CategorySuggestion from "../components/CategorySuggestion.vue";
 const route = useRoute(),
   categories = ref([]),
   busy = ref(false),
@@ -235,6 +236,11 @@ async function template() {
             maxlength="300"
             placeholder="例如：反向代理后客户端 IP 获取异常的解决方案"
         /></label>
+        <CategorySuggestion
+          :title="form.title"
+          :content="form.content"
+          @select="form.category_id = $event"
+        />
         <div class="form-row">
           <label class="field"
             >知识分类<select v-model="form.category_id">

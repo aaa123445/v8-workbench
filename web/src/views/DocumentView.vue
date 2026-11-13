@@ -12,8 +12,9 @@ import {
   ArrowUp,
   Check,
   BookOpen,
+  Network,
 } from "lucide-vue-next";
-import { post } from "../services/api";
+import { api, post } from "../services/api";
 import { useResource } from "../composables/useResource";
 import { sourceLabel, notify } from "../composables/workspace";
 import AsyncState from "../components/AsyncState.vue";
@@ -27,6 +28,7 @@ const route = useRoute(),
   article = ref(null),
   progress = ref(0),
   copied = ref(false);
+const emptyLinks = Object.freeze([]);
 const {
   data: doc,
   loading,
@@ -38,6 +40,10 @@ const {
 );
 const minutes = computed(() =>
   Math.max(1, Math.ceil((doc.value?.total_chars || 0) / 500)),
+);
+const { data: relations } = useResource(
+  () => api("/graph?" + new URLSearchParams({ doc_id: route.params.id })),
+  [() => route.params.id],
 );
 async function more() {
   moreBusy.value = true;
@@ -160,9 +166,18 @@ onBeforeUnmount(() => {
                 class="button small"
                 >查看原文<ExternalLink :size="13"
               /></a>
+              <RouterLink
+                :to="{ path: '/graph', query: { doc: doc.id } }"
+                class="button small"
+                ><Network :size="14" />知识链</RouterLink
+              >
             </div>
           </header>
-          <MarkdownContent :content="doc.content" @headings="headings" />
+          <MarkdownContent
+            :content="doc.content"
+            :wiki-links="relations?.nodes || emptyLinks"
+            @headings="headings"
+          />
           <div v-if="doc.truncated" class="reader-more">
             <p>还有更多内容，继续阅读完整方案。</p>
             <button class="button" :disabled="moreBusy" @click="more">
@@ -182,6 +197,35 @@ onBeforeUnmount(() => {
           </footer>
         </article>
         <aside class="reading-sidebar">
+          <div
+            v-if="relations?.edges?.length"
+            class="reading-toc"
+            style="margin-bottom: 18px"
+          >
+            <h2><Network :size="15" />关联与反向引用</h2>
+            <nav aria-label="关联知识">
+              <RouterLink
+                v-for="n in (relations?.nodes || []).filter(
+                  (n) => n.id !== doc.id,
+                )"
+                :key="n.id"
+                :to="'/documents/' + encodeURIComponent(n.id)"
+                class="text-link"
+                style="
+                  display: block;
+                  padding: 8px 0;
+                  font-size: 12px;
+                  line-height: 1.7;
+                "
+                >{{ n.title }}</RouterLink
+              >
+            </nav>
+            <RouterLink
+              :to="{ path: '/graph', query: { doc: doc.id } }"
+              class="text-link"
+              >展开知识链 →</RouterLink
+            >
+          </div>
           <div class="reading-toc">
             <h2><AlignLeft :size="15" />本页目录</h2>
             <nav aria-label="文档目录">

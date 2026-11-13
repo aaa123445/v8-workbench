@@ -43,6 +43,10 @@ _URL_SECRET = re.compile(
 )
 
 OPERATIONS = {
+    ("GET", "/api/v1/graph"): "graph",
+    ("POST", "/api/v1/graph/links"): "link",
+    ("POST", "/api/v1/classify"): "classify",
+    ("POST", "/api/v1/assistant/ask"): "ask",
     ("POST", "/api/v1/contributions"): "propose",
     ("GET", "/api/v1/categories"): "categories",
     ("GET", "/api/v1/library"): "library",
@@ -61,6 +65,8 @@ OPERATIONS = {
 
 
 def operation_for(method: str, path: str) -> str | None:
+    if method == "DELETE" and path.startswith("/api/v1/graph/links/"):
+        return "unlink"
     if method in {"POST", "PUT"} and path.startswith("/api/v1/contributions/"):
         return "review" if path.endswith("/review") else "propose"
     if (

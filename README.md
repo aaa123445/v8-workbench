@@ -2,6 +2,7 @@
 
 按分类共享团队知识，让本地 Agent 能检索文档、遵循团队规范，并沉淀经过验证的解决方案。项目由 V8 Workbench 演进而来，不局限于特定产品或平台。
 
+- **知识链与智能问答**：双向引用、人工语义关系、场景阅读顺序、分类推荐，以及带来源的云端只读知识问答。
 - **知识工作台**：分类目录、全文检索、文档阅读、团队规范、版本历史与回滚。
 - **协作与审核**：草稿、我的贡献、管理员审核、更新建议与版本冲突检查。
 - **账号与凭据**：注册后审批入网、个人 API Key、角色权限、调用配额及个人调用日志。
@@ -86,6 +87,7 @@ E2E_BASE_URL=http://127.0.0.1:8770 npm run test:e2e
 | --- | --- | --- |
 | 分类与规范 | `kb_categories` / `kb_rules` | `wb categories` / `wb standards` |
 | 检索与阅读 | `kb_search` / `kb_read` | `wb search` / `wb read` |
+| 关联与问答 | `kb_graph` / `kb_ask` | 网页知识链与云端智能体 |
 | 提交方案 | `kb_propose` | `wb propose` |
 | 查看贡献 | `kb_contributions` | `wb contributions` |
 | 项目经验候选 | 通过 Skill 整理 | `wb agent init` / `wb agent complete` |

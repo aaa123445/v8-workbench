@@ -16,6 +16,7 @@ import { notify, refreshStats } from "../composables/workspace";
 import { useResource } from "../composables/useResource";
 import AccountApprovals from "../components/AccountApprovals.vue";
 import AsyncState from "../components/AsyncState.vue";
+import AgentSettings from "../components/AgentSettings.vue";
 const { data, loading, error, reload } = useResource(async () => {
   const [keys, usage] = await Promise.all([
     api("/admin/keys"),
@@ -138,6 +139,7 @@ async function copy() {
       <span class="badge green"><ShieldCheck :size="14" />管理员空间</span>
     </div>
     <AccountApprovals />
+    <AgentSettings />
     <AsyncState :loading="loading" :error="error" @retry="reload"
       ><template v-if="data"
         ><div class="panel">

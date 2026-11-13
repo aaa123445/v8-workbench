@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from .accounts import COOKIE, same_origin, register_routes
 from .knowledge import register_knowledge, Proposal
+from .graph import register_graph
 from .call_logging import CallLoggingMiddleware
 from .call_history import register_call_history
 from ..core.auth import AuthError, Principal, QuotaExceeded
@@ -371,3 +372,5 @@ if (_WEB_DIR / "index.html").exists():
     @app.get("/")
     async def index() -> FileResponse:
         return FileResponse(str(_WEB_DIR / "index.html"))
+
+register_graph(app, principal, _need, get_container=lambda: get_container())

@@ -36,6 +36,8 @@ import {
   ChevronDown,
   Command,
   PlugZap,
+  Network,
+  Bot,
 } from "lucide-vue-next";
 import {
   currentUser,
@@ -64,6 +66,8 @@ const groups = computed(() => [
     label: "知识空间",
     items: [
       { to: "/library", label: "团队知识库", icon: BookOpen },
+      { to: "/graph", label: "知识链", icon: Network },
+      { to: "/assistant", label: "云端智能体", icon: Bot },
       { to: "/workspace", label: "知识检索", icon: Search },
       { to: "/rules", label: "团队规范", icon: ShieldCheck },
       { to: "/overview", label: "知识总览", icon: ChartNoAxesCombined },

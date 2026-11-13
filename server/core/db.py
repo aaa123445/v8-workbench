@@ -156,6 +156,11 @@ CREATE INDEX IF NOT EXISTS idx_calls_user_ts ON call_logs(user_id, ts DESC, id D
 CREATE INDEX IF NOT EXISTS idx_calls_key_ts ON call_logs(key_prefix, ts DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_calls_ts ON call_logs(ts);
 
+CREATE TABLE IF NOT EXISTS knowledge_links(
+ id TEXT PRIMARY KEY,source_id TEXT NOT NULL REFERENCES docs(id) ON DELETE CASCADE,target_id TEXT NOT NULL REFERENCES docs(id) ON DELETE CASCADE,kind TEXT NOT NULL,note TEXT NOT NULL DEFAULT '',actor TEXT NOT NULL,created_at REAL NOT NULL,UNIQUE(source_id,target_id,kind),CHECK(source_id<>target_id)
+);
+CREATE INDEX IF NOT EXISTS idx_links_source ON knowledge_links(source_id);
+CREATE INDEX IF NOT EXISTS idx_links_target ON knowledge_links(target_id);
 CREATE TABLE IF NOT EXISTS knowledge_audit(id INTEGER PRIMARY KEY AUTOINCREMENT,actor TEXT NOT NULL,action TEXT NOT NULL,target TEXT NOT NULL,details TEXT NOT NULL,created_at REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS categories(id TEXT PRIMARY KEY,name TEXT NOT NULL,parent_id TEXT REFERENCES categories(id),sort_order INTEGER NOT NULL DEFAULT 100,created_at REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS contributions(

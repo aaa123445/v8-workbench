@@ -62,7 +62,9 @@ def _remote(path: str, payload: dict | None = None, *, method: str = "POST") -> 
         headers["Authorization"] = f"Bearer {API_KEY}"
     url = f"{BASE_URL}{path}"
     try:
-        with httpx.Client(timeout=60.0) as client:
+        with httpx.Client(
+            timeout=90.0 if path == "/api/v1/assistant/ask" else 60.0
+        ) as client:
             r = client.request(method, url, json=payload, headers=headers)
     except httpx.ConnectError as e:
         raise RuntimeError(
@@ -350,6 +352,68 @@ def kb_rules(category_id: str = "") -> str:
     return json.dumps(
         _remote(
             "/api/v1/standards?" + urlencode({"category_id": category_id}), method="GET"
+        ),
+        ensure_ascii=False,
+    )
+
+
+@mcp.tool()
+def kb_graph(
+    doc_id: str, category_id: str = "", depth: int = 1, scenario: str = "explore"
+) -> str:
+    """查看已发布知识的双向引用、人工关系和推荐关联。排障或学习时沿链读原文；推荐关联不代表确认关系。"""
+    if depth not in (1, 2) or scenario not in {
+        "explore",
+        "troubleshoot",
+        "develop",
+        "compare",
+        "learn",
+    }:
+        raise ValueError(
+            "depth 仅支持 1/2，scenario 需为 explore/troubleshoot/develop/compare/learn"
+        )
+    if MODE == "local":
+        from ..core.graph import GraphService
+
+        return json.dumps(
+            GraphService(_local().c).neighborhood(doc_id, category_id, depth, scenario),
+            ensure_ascii=False,
+        )
+    from urllib.parse import urlencode
+
+    return json.dumps(
+        _remote(
+            "/api/v1/graph?"
+            + urlencode(
+                {
+                    "doc_id": doc_id,
+                    "category_id": category_id,
+                    "depth": depth,
+                    "scenario": scenario,
+                }
+            ),
+            method="GET",
+        ),
+        ensure_ascii=False,
+    )
+
+
+@mcp.tool()
+def kb_ask(
+    question: str, category_id: str = "", scenario: str = "auto", mode: str = "auto"
+) -> str:
+    """请求云端只读智能体基于知识库问答，返回来源、文档版本和知识链。需要管理员配置模型；无依据不生成结论。"""
+    if MODE == "local":
+        raise RuntimeError("云端问答仅支持 proxy 模式，本地模式请自行检索原文分析")
+    return json.dumps(
+        _remote(
+            "/api/v1/assistant/ask",
+            {
+                "question": question,
+                "category_id": category_id,
+                "scenario": scenario,
+                "mode": mode,
+            },
         ),
         ensure_ascii=False,
     )

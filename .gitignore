@@ -53,3 +53,6 @@ web/.preview/
 
 # Local tooling cache
 .ruff_cache/
+
+# Browser test output when invoked from repository root
+/test-results/
