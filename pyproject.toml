@@ -1,7 +1,7 @@
 [project]
 name = "v8-workbench"
-version = "0.1.0"
-description = "致远 V8 客开工作台 — 面向本地 AI Agent 的知识检索与开发规范服务"
+version = "0.5.0"
+description = "TeamKB 团队知识共享平台 — 分类检索、贡献审核与 Agent 经验沉淀"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",

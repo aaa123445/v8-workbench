@@ -46,6 +46,7 @@ class IndexedDoc:
     url: str
     version_hint: str
     is_deprecated: bool
+    category_id: str = ""
 
 
 @dataclass
@@ -59,6 +60,7 @@ class SearchHit:
     def to_dict(self, evidence_chars: int = 320) -> dict:
         return {
             "id": self.doc.id,
+            "category_id": self.doc.category_id,
             "title": self.doc.title,
             "domain": self.doc.domain,
             "path": self.doc.path_text,
@@ -94,7 +96,7 @@ class SearchIndex:
     def rebuild(self) -> int:
         rows = self.db.query(
             """SELECT id, title, path_text, domain, source, tags, words, body,
-                      summary, url, version_hint, is_deprecated
+                      summary, url, version_hint, is_deprecated, category_id
                FROM docs WHERE is_deprecated = 0"""
         )
         with self._lock:
@@ -125,6 +127,7 @@ class SearchIndex:
                     url=r["url"] or "",
                     version_hint=r["version_hint"] or "",
                     is_deprecated=bool(r["is_deprecated"]),
+                    category_id=r["category_id"] or "",
                 )
                 self._docs[did] = doc
                 total_len += doc.body_len
@@ -169,6 +172,7 @@ class SearchIndex:
         source: str | None = None,
         tag: str | None = None,
         include_deprecated: bool = False,
+        category_ids: list[str] | None = None,
     ) -> list[SearchHit]:
         if not query.strip():
             return []
@@ -215,7 +219,9 @@ class SearchIndex:
                         struct_hits[did].append(term)
 
             if not scores:
-                return self._fallback_like(query, limit, domain, source, tag, include_deprecated)
+                return self._fallback_like(
+                    query, limit, domain, source, tag, include_deprecated, category_ids
+                )
 
             results: list[SearchHit] = []
             for did, sc in scores.items():
@@ -225,6 +231,8 @@ class SearchIndex:
                 if domain and not _domain_match(doc.domain, domain):
                     continue
                 if source and doc.source != source:
+                    continue
+                if category_ids is not None and doc.category_id not in category_ids:
                     continue
                 if tag and tag not in doc.tags:
                     continue
@@ -240,7 +248,9 @@ class SearchIndex:
                 # 2) 标题承载率：查询词落在标题里的比例。标题命中是强信号，
                 #    但不该像之前那样揉进 tf 被 BM25 饱和稀释掉。
                 title_hit = sum(1 for t in terms if t in doc.title) / max(1, len(terms))
-                path_hit = sum(1 for t in terms if t in doc.path_text) / max(1, len(terms))
+                path_hit = sum(1 for t in terms if t in doc.path_text) / max(
+                    1, len(terms)
+                )
 
                 bonus = sc * (0.6 * coverage + 1.1 * title_hit + 0.35 * path_hit)
                 final = sc + bonus
@@ -277,6 +287,7 @@ class SearchIndex:
         source: str | None,
         tag: str | None,
         include_deprecated: bool,
+        category_ids: list[str] | None = None,
     ) -> list[SearchHit]:
         """倒排零命中时的兜底：直接在正文上做子串匹配。
 
@@ -290,16 +301,18 @@ class SearchIndex:
         for phrase in cands[:3]:
             rows = self.db.query(
                 """SELECT d.id, d.title, d.path_text, d.domain, d.source, d.tags,
-                          d.summary, d.url, d.version_hint, d.words, d.is_deprecated,
+                          d.summary, d.url, d.version_hint, d.words, d.is_deprecated,d.category_id,
                           substr(d.body, max(1, instr(d.body, ?) - 80), 360) AS snip
                    FROM docs d
                    WHERE d.is_deprecated = 0 AND (d.body LIKE ? OR d.title LIKE ?)
-                   LIMIT ?""",
-                (phrase, f"%{phrase}%", f"%{phrase}%", limit * 3),
+                   """,
+                (phrase, f"%{phrase}%", f"%{phrase}%"),
             )
             if source:
                 rows = [r for r in rows if r["source"] == source]
             for r in rows:
+                if category_ids is not None and r["category_id"] not in category_ids:
+                    continue
                 if r["id"] in seen:
                     continue
                 if domain and not _domain_match(r["domain"] or "", domain):
@@ -323,6 +336,7 @@ class SearchIndex:
                             url=r["url"] or "",
                             version_hint=r["version_hint"] or "",
                             is_deprecated=bool(r["is_deprecated"]),
+                            category_id=r["category_id"] or "",
                         ),
                         score=0.01,
                         matched_terms=[phrase],
@@ -358,10 +372,14 @@ class SearchIndex:
             for d in self._docs.values():
                 top = d.domain.split(" > ")[0] or "未分类"
                 agg[top] += 1
-            return [{"domain": k, "count": v} for k, v in sorted(agg.items(), key=lambda kv: -kv[1])]
+            return [
+                {"domain": k, "count": v}
+                for k, v in sorted(agg.items(), key=lambda kv: -kv[1])
+            ]
 
 
 # ---------------- 内部工具 ----------------
+
 
 def _now() -> float:
     import time
@@ -384,7 +402,9 @@ def _domain_match(doc_domain: str, want: str) -> bool:
     if not want:
         return True
     doc_domain = doc_domain or ""
-    return doc_domain == want or doc_domain.startswith(want + " > ") or want in doc_domain
+    return (
+        doc_domain == want or doc_domain.startswith(want + " > ") or want in doc_domain
+    )
 
 
 _SENT_SPLIT = re.compile(r"[。！？\n]+")

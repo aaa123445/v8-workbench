@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# V8 客开工作台 服务器安装脚本
+# TeamKB 团队知识共享平台服务器安装脚本
 #
 # 前提：项目已上传到 /opt/v8-workbench，且 80 端口已空闲
 # 用法：sudo bash /opt/v8-workbench/deploy/install.sh
@@ -55,6 +55,19 @@ log "安装 Python 依赖"
     "fastapi>=0.115" "uvicorn[standard]>=0.30" "pydantic>=2.7" \
     "httpx>=0.27" "pyyaml>=6.0" "python-multipart>=0.0.9" "mcp>=1.2"
 chown -R "$SVC_USER":"$SVC_USER" "$APP_DIR"
+
+# 3b. 构建 Vue 前端（Node 仅用于构建，运行时仍由 FastAPI 提供静态文件）
+log "构建前端"
+if ! command -v npm >/dev/null 2>&1; then
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update -qq && apt-get install -y -qq nodejs npm
+  else
+    die "请先安装 Node.js 20.19+ 和 npm"
+  fi
+fi
+bash "$APP_DIR/deploy/build-client.sh"
+bash "$APP_DIR/deploy/build-web.sh"
+chown -R "$SVC_USER":"$SVC_USER" "$APP_DIR/web"
 
 # 4. 端口检查（只检查，不处理）
 if command -v ss >/dev/null 2>&1 && ss -lnt 2>/dev/null | awk '{print $4}' | grep -qE ':80$'; then

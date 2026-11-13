@@ -25,10 +25,19 @@ except ImportError:
     print("需要安装依赖：pip install httpx", file=sys.stderr)
     sys.exit(1)
 
-DEFAULT_URL = os.environ.get("V8WB_URL", "http://127.0.0.1:8770").rstrip("/")
-DEFAULT_KEY = os.environ.get("V8WB_KEY", "")
+DEFAULT_URL = (
+    os.environ.get("TEAMKB_URL") or os.environ.get("V8WB_URL", "http://127.0.0.1:8770")
+).rstrip("/")
+DEFAULT_KEY = os.environ.get("TEAMKB_KEY") or os.environ.get("V8WB_KEY", "")
 
-GREEN, YELLOW, RED, DIM, BOLD, RESET = "\033[32m", "\033[33m", "\033[31m", "\033[2m", "\033[1m", "\033[0m"
+GREEN, YELLOW, RED, DIM, BOLD, RESET = (
+    "\033[32m",
+    "\033[33m",
+    "\033[31m",
+    "\033[2m",
+    "\033[1m",
+    "\033[0m",
+)
 
 
 def _color(s: str, c: str, enabled: bool) -> str:
@@ -42,7 +51,7 @@ class Client:
         self.timeout = timeout
 
     def _headers(self) -> dict[str, str]:
-        h = {"Content-Type": "application/json"}
+        h = {"Content-Type": "application/json", "X-V8WB-Client": "cli"}
         if self.key:
             h["Authorization"] = f"Bearer {self.key}"
         return h
@@ -50,7 +59,9 @@ class Client:
     def call(self, method: str, path: str, payload: Any = None) -> Any:
         try:
             with httpx.Client(timeout=self.timeout) as c:
-                r = c.request(method, f"{self.url}{path}", json=payload, headers=self._headers())
+                r = c.request(
+                    method, f"{self.url}{path}", json=payload, headers=self._headers()
+                )
         except httpx.ConnectError:
             _die(f"连不上工作台 {self.url}。用 --url 指定地址，或确认服务已启动。")
         except httpx.TimeoutException:
@@ -93,10 +104,18 @@ def _emit(data: Any, as_json: bool) -> None:
 
 # ---------------- 命令 ----------------
 
+
 def cmd_search(c: Client, a) -> None:
     out = c.call(
-        "POST", "/api/v1/search",
-        {"query": a.query, "limit": a.limit, "domain": a.domain, "tag": a.tag},
+        "POST",
+        "/api/v1/search",
+        {
+            "query": a.query,
+            "limit": a.limit,
+            "domain": a.domain,
+            "tag": a.tag,
+            "category_id": a.category_id,
+        },
     )
     if a.json:
         _emit(out, True)
@@ -125,7 +144,11 @@ def cmd_search(c: Client, a) -> None:
 
 
 def cmd_read(c: Client, a) -> None:
-    out = c.call("POST", "/api/v1/read", {"id": a.id, "title": a.title, "offset": a.offset, "max_chars": a.max_chars})
+    out = c.call(
+        "POST",
+        "/api/v1/read",
+        {"id": a.id, "title": a.title, "offset": a.offset, "max_chars": a.max_chars},
+    )
     if a.json:
         _emit(out, True)
         return
@@ -136,11 +159,19 @@ def cmd_read(c: Client, a) -> None:
         return
     if not a.raw:
         print(_color(f"# {out['title']}", BOLD, True))
-        print(_color(f"{out.get('path') or '-'}  |  {out.get('source')}  |  {out.get('url') or '-'}", DIM, True))
+        print(
+            _color(
+                f"{out.get('path') or '-'}  |  {out.get('source')}  |  {out.get('url') or '-'}",
+                DIM,
+                True,
+            )
+        )
         print("─" * 60)
     print(out["content"])
     if out.get("truncated"):
-        print(f"\n{DIM}[共 {out['total_chars']} 字，用 --offset {out['next_offset']} 继续]{RESET}")
+        print(
+            f"\n{DIM}[共 {out['total_chars']} 字，用 --offset {out['next_offset']} 继续]{RESET}"
+        )
 
 
 def cmd_rules(c: Client, a) -> None:
@@ -153,7 +184,9 @@ def cmd_rules(c: Client, a) -> None:
     if idx and not a.docs:
         print(f"\n{BOLD}对应文档 id{RESET}（用 wb read <id> 展开）")
         for d in idx:
-            print(f"  {DIM}{d['id']}{RESET}  {d['title']}  {DIM}({d['chars']} 字){RESET}")
+            print(
+                f"  {DIM}{d['id']}{RESET}  {d['title']}  {DIM}({d['chars']} 字){RESET}"
+            )
 
 
 def cmd_domains(c: Client, a) -> None:
@@ -172,7 +205,9 @@ def cmd_stats(c: Client, a) -> None:
     if a.json:
         _emit(out, True)
         return
-    print(f"文档 {out.get('documents')}  词条 {out.get('terms')}  平均长度 {out.get('avg_body_len')}\n")
+    print(
+        f"文档 {out.get('documents')}  词条 {out.get('terms')}  平均长度 {out.get('avg_body_len')}\n"
+    )
     print(f"{BOLD}知识域{RESET}")
     for k, v in (out.get("by_domain") or {}).items():
         print(f"  {k:<22} {v:>4}")
@@ -206,7 +241,9 @@ def cmd_push(c: Client, a) -> None:
             if f.name.startswith("."):
                 continue
             body = f.read_text(encoding="utf-8", errors="replace")
-            title = a.title if (a.title and len(files) == 1) else _title_from_md(f, body)
+            title = (
+                a.title if (a.title and len(files) == 1) else _title_from_md(f, body)
+            )
             items.append(
                 {
                     "title": title,
@@ -266,8 +303,10 @@ def cmd_sync(c: Client, a) -> None:
         _emit(out, True)
         return
     print(f"目录节点 {out.get('toc')}  实抓 {out.get('fetched')}")
-    print(f"新增 {out.get('created')}  更新 {out.get('updated')}  "
-          f"未变 {out.get('unchanged')}  跳过 {out.get('skipped')}  失败 {out.get('failed')}")
+    print(
+        f"新增 {out.get('created')}  更新 {out.get('updated')}  "
+        f"未变 {out.get('unchanged')}  跳过 {out.get('skipped')}  失败 {out.get('failed')}"
+    )
     for e in (out.get("errors") or [])[:10]:
         print(f"  {RED}✗{RESET} {e['title']}: {e['error']}")
 
@@ -275,10 +314,13 @@ def cmd_sync(c: Client, a) -> None:
 def cmd_key(c: Client, a) -> None:
     if a.action == "create":
         out = c.call(
-            "POST", "/api/v1/admin/keys",
+            "POST",
+            "/api/v1/admin/keys",
             {"name": a.name, "role": a.role, "rpm": a.rpm, "daily": a.daily},
         )
-        print(f"{GREEN}已创建{RESET}  {out['name']}  role={out['role']}  prefix={out['prefix']}")
+        print(
+            f"{GREEN}已创建{RESET}  {out['name']}  role={out['role']}  prefix={out['prefix']}"
+        )
         print(f"\n{BOLD}{out['key']}{RESET}\n")
         print(_color("此 key 只显示一次，请立即保存", YELLOW, True))
     elif a.action == "list":
@@ -288,7 +330,9 @@ def cmd_key(c: Client, a) -> None:
             return
         for k in out.get("keys", []):
             icon = f"{GREEN}●{RESET}" if k["enabled"] else f"{RED}○{RESET}"
-            print(f"{icon} {k['key_prefix']:<14} {k['role']:<7} {k['name']:<20} 今日 {k['used_today']}/{k['daily_limit']}")
+            print(
+                f"{icon} {k['key_prefix']:<14} {k['role']:<7} {k['name']:<20} 今日 {k['used_today']}/{k['daily_limit']}"
+            )
     elif a.action == "revoke":
         out = c.call("DELETE", f"/api/v1/admin/keys/{a.prefix}")
         print("已吊销" if out.get("revoked") else "未找到该 key")
@@ -310,14 +354,21 @@ def cmd_serve(a) -> None:
     from server.config import get_settings
 
     s = get_settings()
-    uvicorn.run("server.api.http_app:app", host=a.host or s.host, port=a.port or s.port, log_level=a.log_level)
+    uvicorn.run(
+        "server.api.http_app:app",
+        host=a.host or s.host,
+        port=a.port or s.port,
+        log_level=a.log_level,
+    )
 
 
 def cmd_mcp(a) -> None:
     """启动 MCP stdio 服务。"""
     os.environ["V8WB_URL"] = a.url or DEFAULT_URL
+    os.environ["TEAMKB_URL"] = a.url or DEFAULT_URL
     if a.key:
         os.environ["V8WB_KEY"] = a.key
+        os.environ["TEAMKB_KEY"] = a.key
     if a.local:
         os.environ["V8WB_MODE"] = "local"
     from server.api.mcp_server import main as mcp_main
@@ -327,10 +378,11 @@ def cmd_mcp(a) -> None:
 
 # ---------------- 参数 ----------------
 
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="wb",
-        description="V8 客开工作台 CLI — 知识检索、规范查阅、经验沉淀",
+        description="TeamKB 团队知识库 CLI — 分类检索、贡献审核、Agent 自动沉淀",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""常用示例:
   wb search "组织同步 中间表"
@@ -351,6 +403,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("-n", "--limit", type=int, default=8)
     s.add_argument("-d", "--domain", default="")
     s.add_argument("-t", "--tag", default="")
+    s.add_argument("--category-id", default="")
     s.set_defaults(func=cmd_search, needs_client=True)
 
     r = sub.add_parser("read", help="读取文档正文")
@@ -362,7 +415,12 @@ def build_parser() -> argparse.ArgumentParser:
     r.set_defaults(func=cmd_read, needs_client=True)
 
     ru = sub.add_parser("rules", help="获取任务规范清单")
-    ru.add_argument("task", nargs="?", default="", help="spi/udc/bpm/frontend/integration/data/docs/general")
+    ru.add_argument(
+        "task",
+        nargs="?",
+        default="",
+        help="spi/udc/bpm/frontend/integration/data/docs/general",
+    )
     ru.add_argument("--docs", action="store_true", help="附带规范正文")
     ru.set_defaults(func=cmd_rules, needs_client=True)
 
@@ -375,7 +433,9 @@ def build_parser() -> argparse.ArgumentParser:
     push = sub.add_parser("push", help="推送本地知识文件")
     push.add_argument("path", help=".md 文件 / 目录 / .json")
     push.add_argument("--title", default="", help="单文件时指定标题")
-    push.add_argument("--path-tag", dest="kb_path", default="", help="知识库内路径，如 沉淀/某项目")
+    push.add_argument(
+        "--path-tag", dest="kb_path", default="", help="知识库内路径，如 沉淀/某项目"
+    )
     push.add_argument("--project", default="")
     push.add_argument("--tags", default="")
     push.add_argument("-y", "--yes", action="store_true", help="跳过确认")
@@ -408,6 +468,9 @@ def build_parser() -> argparse.ArgumentParser:
     m.add_argument("--local", action="store_true", help="本地模式，直接读本地库")
     m.set_defaults(func=None, needs_client=False, mcp=True)
 
+    from cli.knowledge import register
+
+    register(sub)
     return p
 
 
@@ -423,7 +486,10 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     client = Client(a.url, a.key, timeout=a.timeout)
-    a.func(client, a)
+    try:
+        a.func(client, a)
+    except (ValueError, OSError) as exc:
+        _die(str(exc))
 
 
 if __name__ == "__main__":

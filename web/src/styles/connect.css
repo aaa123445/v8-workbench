@@ -1,0 +1,281 @@
+.connect-banner {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 26px 30px;
+  margin-bottom: 24px;
+  background: linear-gradient(115deg, #eef2ff, #f5f8ff);
+  border: 1px solid #dfe6ff;
+  border-radius: 14px;
+}
+.connect-logo {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  border-radius: 16px;
+  color: #465fff;
+  background: #fff;
+  box-shadow: 0 5px 15px #465fff12;
+}
+.connect-banner h2 {
+  margin: 0 0 10px;
+  font-size: 20px;
+  color: #344054;
+}
+.connect-banner p {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+}
+.connect-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 390px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.connect-settings {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.connect-panel {
+  padding: 22px;
+}
+.connect-panel h2,
+.connect-output h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 15px;
+  margin: 0 0 18px;
+}
+.connect-number {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: #eef2ff;
+  color: #465fff;
+  font-size: 12px;
+}
+.connect-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.connect-mode {
+  padding: 14px 12px;
+  text-align: left;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  background: #fff;
+  color: #344054;
+  cursor: pointer;
+}
+.connect-mode.active {
+  border-color: #465fff;
+  background: #f5f7ff;
+  box-shadow: 0 0 0 1px #465fff;
+}
+.connect-mode > span {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.connect-mode svg {
+  color: #465fff;
+  flex-shrink: 0;
+}
+.connect-mode small {
+  display: block;
+  margin-top: 9px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: #667085;
+}
+.connect-server {
+  display: grid;
+  gap: 7px;
+  border-top: 1px solid #eef0f4;
+  padding-top: 16px;
+  margin-top: 18px;
+  font-size: 11px;
+  color: #667085;
+}
+.connect-server code {
+  overflow-wrap: anywhere;
+  color: #465fff;
+}
+.connect-help {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #667085;
+  margin: 0 0 14px;
+}
+.connect-panel .field {
+  margin-bottom: 12px;
+}
+.connect-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  cursor: pointer;
+  margin: 15px 0;
+}
+.connect-check input {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  accent-color: #465fff;
+  margin: 2px 0 0;
+}
+.connect-check small {
+  display: block;
+  margin-top: 5px;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.connect-create {
+  border-top: 1px solid #eaecf0;
+  padding-top: 15px;
+  margin-top: 15px;
+}
+.connect-create summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  color: #465fff;
+  font-size: 12px;
+}
+.connect-create form {
+  margin-top: 16px;
+}
+.connect-create .connect-help {
+  margin-top: 12px;
+}
+.connect-output {
+  padding: 25px;
+  min-width: 0;
+  position: sticky;
+  top: 97px;
+}
+.connect-output-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.connect-output-heading .eyebrow {
+  font-size: 9px;
+  color: #8490a7;
+  letter-spacing: 0.1em;
+}
+.connect-output-heading h2 {
+  margin-top: 12px;
+}
+.connect-preview {
+  margin: 18px 0;
+  max-height: 520px;
+  min-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 20px;
+  background: #f8faff;
+  border: 1px solid #e6eaf2;
+  border-radius: 10px;
+  color: #475467;
+  font-size: 12px;
+  line-height: 1.9;
+  scrollbar-width: thin;
+}
+.connect-copy-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.connect-bottom-note {
+  margin: 16px 0 0;
+  font-size: 11px;
+}
+.connect-loading {
+  min-height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #667085;
+  font-size: 12px;
+}
+.connect-error {
+  color: #b42318;
+  font-size: 13px;
+}
+.connect-manual {
+  margin-top: 18px;
+}
+.connect-manual textarea {
+  width: 100%;
+  height: 200px;
+  font-size: 12px;
+  line-height: 1.7;
+  resize: vertical;
+  box-sizing: border-box;
+}
+@media (max-width: 1100px) {
+  .connect-layout {
+    grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+    gap: 18px;
+  }
+  .connect-output {
+    padding: 20px;
+  }
+  .connect-modes {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 800px) {
+  .connect-layout {
+    grid-template-columns: 1fr;
+  }
+  .connect-modes {
+    grid-template-columns: 1fr 1fr;
+  }
+  .connect-output {
+    position: static;
+  }
+  .connect-banner {
+    padding: 22px 18px;
+    gap: 15px;
+  }
+  .connect-banner h2 {
+    font-size: 16px;
+  }
+  .connect-banner p {
+    gap: 8px;
+    font-size: 11px;
+  }
+  .connect-preview {
+    max-height: 420px;
+  }
+  .connect-output-heading {
+    align-items: flex-start;
+  }
+  .connect-panel {
+    padding: 20px;
+  }
+}

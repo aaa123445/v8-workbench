@@ -42,6 +42,9 @@ class Settings:
     default_rpm: int = field(default_factory=lambda: _env_int("V8WB_DEFAULT_RPM", 120))
     default_daily: int = field(default_factory=lambda: _env_int("V8WB_DEFAULT_DAILY", 20000))
 
+    call_log_retention_days: int = field(default_factory=lambda: _env_int("V8WB_CALL_LOG_RETENTION_DAYS", 30))
+    call_log_max_entries: int = field(default_factory=lambda: _env_int("V8WB_CALL_LOG_MAX_ENTRIES", 2000))
+
     # 检索
     max_top_k: int = field(default_factory=lambda: _env_int("V8WB_MAX_TOP_K", 50))
     max_read_chars: int = field(default_factory=lambda: _env_int("V8WB_MAX_READ_CHARS", 60000))

@@ -12,7 +12,7 @@
 工具设计原则：
   - 描述里写清"什么时候用"，不只写"是什么"。模型靠描述决定是否调用。
   - 返回结构化短文本 + 明确下一步指引，减少模型瞎猜。
-  - 工具数量控制在 8 个以内，太多会稀释模型的工具选择准确率。
+  - kb_* 提供通用入口，v8_* 保留旧客户端兼容。
 """
 
 from __future__ import annotations
@@ -33,32 +33,31 @@ except ImportError:  # pragma: no cover
         raise
 
 MODE = os.environ.get("V8WB_MODE", "proxy").strip().lower()
-BASE_URL = os.environ.get("V8WB_URL", "http://127.0.0.1:8770").rstrip("/")
-API_KEY = os.environ.get("V8WB_KEY", "")
+BASE_URL = (
+    os.environ.get("TEAMKB_URL") or os.environ.get("V8WB_URL", "http://127.0.0.1:8770")
+).rstrip("/")
+API_KEY = os.environ.get("TEAMKB_KEY") or os.environ.get("V8WB_KEY", "")
 
-INSTRUCTIONS = """\
-这是致远 V8 客开工作台。处理 V8 客开任务时遵守以下顺序：
-
-1. 动手前先调 v8_rules(task) 拿到该任务类型的规范清单和自查项。
-2. 写涉及平台 API 的代码前，先用 v8_search 检索，再用 v8_read 读完整文档。
-   不要凭记忆写 V8 接口 —— 平台接口在不同版本差异很大。
-3. 查不到时换更短的平台术语重试，或用 v8_domains 看看有哪些知识域。
-4. 任务完成后，如果踩到了文档里没写的坑，用 v8_contribute 沉淀经验。
-"""
+INSTRUCTIONS = """团队知识库：开始任务时用 kb_categories / kb_rules 找到分类与团队规范，
+用 kb_search 检索，再用 kb_read 核对原文。完成任务后，只提交经过实际验证、
+具有复用价值且已经脱敏的解决方案，使用 kb_propose 进入审核。
+更新已有知识时传 target_doc_id。不要上传完整会话、仓库或凭据。
+v8_* 工具保留用于兼容旧的致远 V8 工作流。"""
 
 mcp = MCPServer(
-    "v8-workbench",
+    "team-knowledge",
     instructions=INSTRUCTIONS,
-    version="0.1.0",
+    version="0.5.0",
 )
 
 
 # ---------------- 后端抽象 ----------------
 
+
 def _remote(path: str, payload: dict | None = None, *, method: str = "POST") -> Any:
     import httpx
 
-    headers = {"Content-Type": "application/json"}
+    headers = {"Content-Type": "application/json", "X-V8WB-Client": "mcp"}
     if API_KEY:
         headers["Authorization"] = f"Bearer {API_KEY}"
     url = f"{BASE_URL}{path}"
@@ -101,6 +100,7 @@ def _call(
 
 
 # ---------------- 工具 ----------------
+
 
 @mcp.tool()
 def v8_search(
@@ -160,7 +160,9 @@ def v8_read(doc_id: str = "", title: str = "", offset: int = 0) -> str:
         local_args={"doc_id": doc_id, "title": title, "offset": offset},
     )
     if out.get("ambiguous"):
-        cands = "\n".join(f"  - {c['id']}  {c['title']}  ({c['path']})" for c in out["candidates"])
+        cands = "\n".join(
+            f"  - {c['id']}  {c['title']}  ({c['path']})" for c in out["candidates"]
+        )
         return f"标题匹配到多篇，请用 id 重新调用：\n{cands}"
     head = (
         f"# {out['title']}\n"
@@ -260,18 +262,10 @@ def v8_contribute(
         "project": project,
         "summary": summary,
         "tags": [t.strip() for t in tags.split(",") if t.strip()],
-        "source": "agent",
+        "source": "manual",
     }
-    out = _call(
-        "/api/v1/knowledge",
-        payload,
-        local_fn="submit_knowledge",
-        local_args={**payload, "actor": "mcp-local"},
-    )
-    action = {"created": "已新增", "updated": "已更新", "unchanged": "内容无变化，跳过"}.get(
-        out.get("action", ""), out.get("action", "")
-    )
-    return f"{action}：{out.get('title')}\n- doc_id: {out.get('id')}"
+    out = _generic("/api/v1/contributions", payload)
+    return json.dumps(out, ensure_ascii=False)
 
 
 @mcp.tool()
@@ -293,7 +287,130 @@ def v8_stats() -> str:
     return "\n".join(lines)
 
 
+# Generic tools return structured JSON and use the same review pipeline.
+def _generic(path, payload=None, method="POST"):
+    if MODE != "local":
+        return _remote(path, payload, method=method)
+    from server.core.auth import Principal
+
+    k = _local().c.knowledge
+    if path == "/api/v1/categories":
+        return {"categories": k.categories()}
+    if path == "/api/v1/standards":
+        return {"standards": k.standards((payload or {}).get("category_id", ""))}
+    if path == "/api/v1/contributions":
+        p = Principal("local-agent", "Offline agent", "writer", 100000, 100000)
+        return k.propose(p, payload)
+    raise RuntimeError("此工具仅支持 proxy 模式")
+
+
+@mcp.tool()
+def kb_categories() -> str:
+    """列出团队知识分类树、分类 ID 和文档数量。检索或提交前用于确定分类。"""
+    return json.dumps(_generic("/api/v1/categories", method="GET"), ensure_ascii=False)
+
+
+@mcp.tool()
+def kb_search(query: str, category_id: str = "", tag: str = "", limit: int = 8) -> str:
+    """按关键词、分类（包含子分类）和标签检索已发布知识。结果需用 kb_read 核对。"""
+    return json.dumps(
+        _call(
+            "/api/v1/search",
+            {"query": query, "category_id": category_id, "tag": tag, "limit": limit},
+            local_fn="search",
+        ),
+        ensure_ascii=False,
+    )
+
+
+@mcp.tool()
+def kb_read(doc_id: str, offset: int = 0) -> str:
+    """读取已发布文档，包含分类和版本。truncated 时用 next_offset 继续读取。"""
+    return json.dumps(
+        _call(
+            "/api/v1/read",
+            {"id": doc_id, "offset": offset},
+            local_fn="read",
+            local_args={"doc_id": doc_id, "offset": offset},
+        ),
+        ensure_ascii=False,
+    )
+
+
+@mcp.tool()
+def kb_rules(category_id: str = "") -> str:
+    """获取管理员配置的团队规范清单和关联文档 ID。开始任务时调用。"""
+    if MODE == "local":
+        return json.dumps(
+            {"standards": _local().c.knowledge.standards(category_id)},
+            ensure_ascii=False,
+        )
+    from urllib.parse import urlencode
+
+    return json.dumps(
+        _remote(
+            "/api/v1/standards?" + urlencode({"category_id": category_id}), method="GET"
+        ),
+        ensure_ascii=False,
+    )
+
+
+@mcp.tool()
+def kb_propose(
+    title: str,
+    content: str,
+    category_id: str,
+    problem: str,
+    solution: str,
+    verification: str,
+    limitations: str,
+    verified: bool = False,
+    reusable: bool = False,
+    tags: list[str] | None = None,
+    target_doc_id: str = "",
+    base_version: int | None = None,
+) -> str:
+    """提交已实际验证且可复用的脱敏方案，默认待管理员审核。
+    必须说明问题、具体解法、真实验证证据和适用限制。未验证时不要编造证据。
+    先搜索避免重复；修正现有文档传 target_doc_id 和读取时的 knowledge_version 作为 base_version。不会直接覆盖线上文档。
+    """
+    payload = dict(
+        title=title,
+        content=content,
+        category_id=category_id,
+        problem=problem,
+        solution=solution,
+        verification=verification,
+        limitations=limitations,
+        verified=verified,
+        reusable=reusable,
+        tags=tags or [],
+        target_doc_id=target_doc_id,
+        base_version=base_version,
+        source="agent",
+    )
+    return json.dumps(_generic("/api/v1/contributions", payload), ensure_ascii=False)
+
+
+@mcp.tool()
+def kb_contributions(contribution_id: str = "") -> str:
+    """查看自己的贡献状态和审核意见；传贡献 ID 获取详情。"""
+    if MODE == "local":
+        raise RuntimeError("请在本地网页查看离线候选；团队审核需要 proxy 模式")
+    from urllib.parse import quote
+
+    return json.dumps(
+        _remote(
+            "/api/v1/contributions"
+            + ("/" + quote(contribution_id, safe="") if contribution_id else ""),
+            method="GET",
+        ),
+        ensure_ascii=False,
+    )
+
+
 # ---------------- 格式化 ----------------
+
 
 def _format_search(out: dict) -> str:
     items = out.get("results", [])

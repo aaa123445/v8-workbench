@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 from .db import Database
+from .v8_categories import category_for_path
 
 # 语雀目录树顶层 -> 归一化知识域。agent 检索时用 domain 过滤，必须稳定。
 DOMAIN_ALIASES = {
@@ -75,6 +76,7 @@ class DocInput:
     domain: str | None = None
     version_hint: str = ""
     is_deprecated: bool = False
+    category_id: str = ""
 
 
 @dataclass
@@ -104,11 +106,6 @@ class DocRepo:
         summary = doc.summary or _summarize(body)
         words = _word_count(body)
 
-        existing = self.db.one("SELECT checksum, body, title FROM docs WHERE id = ?", (doc_id,))
-        if existing and existing["checksum"] == checksum:
-            return UpsertResult(doc_id, "unchanged", doc.title)
-
-        action = "updated" if existing else "created"
         payload = {
             "title": doc.title,
             "path_text": doc.path_text,
@@ -117,6 +114,14 @@ class DocRepo:
             "source": doc.source,
         }
         with self.db.write() as conn:
+            existing = self.db.one(
+                "SELECT checksum, body, title,category_id,knowledge_version FROM docs WHERE id = ?",
+                (doc_id,),
+            )
+            if existing and existing["checksum"] == checksum:
+                return UpsertResult(doc_id, "unchanged", doc.title)
+
+            action = "updated" if existing else "created"
             conn.execute(
                 """INSERT INTO docs (id, source, title, path_text, domain, body, summary, words,
                                      url, version_hint, tags, meta, checksum, created_by,
@@ -138,10 +143,53 @@ class DocRepo:
                        updated_at=excluded.updated_at,
                        is_deprecated=excluded.is_deprecated""",
                 (
-                    doc_id, doc.source, doc.title, doc.path_text, domain, body, summary, words,
-                    doc.url, version, json.dumps(tags, ensure_ascii=False),
-                    json.dumps(doc.meta, ensure_ascii=False), checksum, doc.created_by,
-                    now, now, 1 if doc.is_deprecated else 0,
+                    doc_id,
+                    doc.source,
+                    doc.title,
+                    doc.path_text,
+                    domain,
+                    body,
+                    summary,
+                    words,
+                    doc.url,
+                    version,
+                    json.dumps(tags, ensure_ascii=False),
+                    json.dumps(doc.meta, ensure_ascii=False),
+                    checksum,
+                    doc.created_by,
+                    now,
+                    now,
+                    1 if doc.is_deprecated else 0,
+                ),
+            )
+            category = (
+                doc.category_id
+                or (existing["category_id"] if existing else None)
+                or (
+                    category_for_path(doc.path_text)
+                    if doc.source == "yuque"
+                    else "uncategorized"
+                )
+            )
+            number = (existing["knowledge_version"] if existing else 0) + 1
+            conn.execute(
+                "UPDATE docs SET category_id=?,knowledge_version=? WHERE id=?",
+                (category, number, doc_id),
+            )
+            conn.execute(
+                "INSERT INTO knowledge_versions(doc_id,version,title,content,category_id,tags,summary,version_hint,url,actor,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    doc_id,
+                    number,
+                    doc.title,
+                    body,
+                    category,
+                    json.dumps(tags, ensure_ascii=False),
+                    summary,
+                    version,
+                    doc.url,
+                    doc.created_by or "import",
+                    now,
                 ),
             )
             conn.execute(
@@ -150,7 +198,13 @@ class DocRepo:
             )
             conn.execute(
                 "INSERT INTO revisions (doc_id, action, actor, day_at, payload) VALUES (?,?,?,?,?)",
-                (doc_id, action, doc.created_by or "system", now, json.dumps(payload, ensure_ascii=False)),
+                (
+                    doc_id,
+                    action,
+                    doc.created_by or "system",
+                    now,
+                    json.dumps(payload, ensure_ascii=False),
+                ),
             )
         return UpsertResult(doc_id, action, doc.title)
 
@@ -167,7 +221,8 @@ class DocRepo:
     def deprecate(self, doc_id: str, actor: str) -> bool:
         with self.db.write() as conn:
             cur = conn.execute(
-                "UPDATE docs SET is_deprecated = 1, updated_at = ? WHERE id = ?", (time.time(), doc_id)
+                "UPDATE docs SET is_deprecated = 1, updated_at = ? WHERE id = ?",
+                (time.time(), doc_id),
             )
             if cur.rowcount:
                 conn.execute(
@@ -210,7 +265,9 @@ class DocRepo:
         只改派生字段，不动正文和 checksum，因此不会污染去重判断。
         """
         stat = {"total": 0, "changed": 0, "version_filled": 0}
-        rows = self.db.query("SELECT id, title, path_text, body, version_hint, tags FROM docs")
+        rows = self.db.query(
+            "SELECT id, title, path_text, body, version_hint, tags FROM docs"
+        )
         stat["total"] = len(rows)
         with self.db.write() as conn:
             for r in rows:
@@ -224,16 +281,27 @@ class DocRepo:
                 conn.execute(
                     """UPDATE docs SET domain=?, version_hint=?, tags=?, summary=?, words=?
                        WHERE id=?""",
-                    (domain, version, json.dumps(tags, ensure_ascii=False), summary, words, r["id"]),
+                    (
+                        domain,
+                        version,
+                        json.dumps(tags, ensure_ascii=False),
+                        summary,
+                        words,
+                        r["id"],
+                    ),
                 )
                 stat["changed"] += 1
         return stat
 
     def count_by_source(self) -> dict[str, int]:
-        rows = self.db.query("SELECT source, COUNT(*) AS n FROM docs WHERE is_deprecated=0 GROUP BY source")
+        rows = self.db.query(
+            "SELECT source, COUNT(*) AS n FROM docs WHERE is_deprecated=0 GROUP BY source"
+        )
         return {r["source"]: r["n"] for r in rows}
 
-    def list_docs(self, *, domain: str = "", source: str = "", limit: int = 100, offset: int = 0) -> list[dict]:
+    def list_docs(
+        self, *, domain: str = "", source: str = "", limit: int = 100, offset: int = 0
+    ) -> list[dict]:
         sql = "SELECT id, title, path_text, domain, source, words, version_hint, url, updated_at FROM docs WHERE is_deprecated=0"
         params: list[Any] = []
         if domain:
@@ -248,6 +316,7 @@ class DocRepo:
 
 
 # ---------------- 归一化与推断 ----------------
+
 
 def _row_to_dict(r) -> dict:
     d = dict(r)
@@ -269,7 +338,9 @@ def _derive_id(source: str, title: str) -> str:
 
 
 def _checksum(title: str, body: str, path_text: str) -> str:
-    return hashlib.sha256(f"{title}\x00{path_text}\x00{body}".encode("utf-8")).hexdigest()[:32]
+    return hashlib.sha256(
+        f"{title}\x00{path_text}\x00{body}".encode("utf-8")
+    ).hexdigest()[:32]
 
 
 def _normalize_body(body: str) -> str:
@@ -312,7 +383,7 @@ def _infer_version(body: str, path_text: str) -> str:
             major = int(ver.split(".")[0])
         except ValueError:
             major = -1
-        if major in _PLAUSIBLE_MAJOR:
+        if 0 <= major <= 100:
             # 归一化限定词，"起" 和 "及以上" 同义
             q = _QUALIFIER_MAP.get(qualifier, qualifier)
             return f"{ver}{q}"

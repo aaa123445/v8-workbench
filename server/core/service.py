@@ -7,12 +7,11 @@ MCP 那边不用再转换一次。
 
 from __future__ import annotations
 
-import re
 import time
 from typing import Any
 
 from .container import Container
-from .docs import DocInput, DocRepo
+from .docs import DocInput
 from .rules import render_brief, resolve_profile
 
 
@@ -38,10 +37,13 @@ class WorkbenchService:
         domain: str = "",
         source: str = "",
         tag: str = "",
+        category_id: str = "",
         include_deprecated: bool = False,
     ) -> dict[str, Any]:
         if not query or not query.strip():
-            raise ServiceError("empty_query", "query 不能为空", "传入中文关键词或问题描述")
+            raise ServiceError(
+                "empty_query", "query 不能为空", "传入中文关键词或问题描述"
+            )
         limit = max(1, min(limit, self.c.settings.max_top_k))
         hits = self.c.index.search(
             query,
@@ -49,6 +51,9 @@ class WorkbenchService:
             domain=domain or None,
             source=source or None,
             tag=tag or None,
+            category_ids=self.c.knowledge.descendants(category_id)
+            if category_id
+            else None,
             include_deprecated=include_deprecated,
         )
         items = [h.to_dict() for h in hits]
@@ -58,9 +63,9 @@ class WorkbenchService:
             "results": items,
         }
         if not items:
-            out["hint"] = "无命中。可尝试：去掉'怎么做/如何'等虚词，直接用平台术语（SPI扩展/UDC/组织同步）；或调用 v8_domains 看有哪些知识域"
+            out["hint"] = "无命中。请换用更短的关键词，或用 kb_categories 查看分类。"
         elif items[0]["score"] < 2.0:
-            out["hint"] = "命中较弱。建议用 v8_read 打开排名第一的文档确认，或换用更具体的平台术语重新检索"
+            out["hint"] = "命中较弱。请用 kb_read 阅读原文确认，或换用更具体的关键词。"
         return out
 
     def read(
@@ -82,19 +87,29 @@ class WorkbenchService:
                 return {
                     "ambiguous": True,
                     "candidates": [
-                        {"id": x["id"], "title": x["title"], "path": x["path_text"]} for x in cands
+                        {"id": x["id"], "title": x["title"], "path": x["path_text"]}
+                        for x in cands
                     ],
                     "hint": "标题匹配到多篇，请用 id 精确读取",
                 }
         if not doc:
-            raise ServiceError("not_found", f"未找到文档：{doc_id or title}", "先用 v8_search 拿到 id")
+            raise ServiceError(
+                "not_found", f"未找到文档：{doc_id or title}", "先用 kb_search 拿到 id"
+            )
 
-        limit = min(max_chars or self.c.settings.max_read_chars, self.c.settings.max_read_chars)
+        limit = min(
+            max_chars or self.c.settings.max_read_chars, self.c.settings.max_read_chars
+        )
         body = doc["body"]
         total = len(body)
         chunk = body[offset : offset + limit]
         return {
             "id": doc["id"],
+            "category_id": doc.get("category_id"),
+            "category_path": self.c.knowledge.category_path(doc["category_id"])
+            if doc.get("category_id")
+            else "",
+            "knowledge_version": doc.get("knowledge_version", 1),
             "title": doc["title"],
             "path": doc["path_text"],
             "domain": doc["domain"],
@@ -110,11 +125,16 @@ class WorkbenchService:
         }
 
     def domains(self) -> dict[str, Any]:
-        return {"domains": self.c.index.domains(), "total": sum(d["count"] for d in self.c.index.domains())}
+        return {
+            "domains": self.c.index.domains(),
+            "total": sum(d["count"] for d in self.c.index.domains()),
+        }
 
     # ================= 规范 =================
 
-    def rules(self, task: str = "", *, include_docs: bool = False, per_doc_chars: int = 6000) -> dict[str, Any]:
+    def rules(
+        self, task: str = "", *, include_docs: bool = False, per_doc_chars: int = 6000
+    ) -> dict[str, Any]:
         p = resolve_profile(task)
         brief = render_brief(p)
         out: dict[str, Any] = {
@@ -148,12 +168,19 @@ class WorkbenchService:
                 out.append(pick)
         return out
 
-    def _resolve_titles(self, titles: tuple[str, ...], per_doc_chars: int) -> list[dict]:
+    def _resolve_titles(
+        self, titles: tuple[str, ...], per_doc_chars: int
+    ) -> list[dict]:
         out = []
         for doc in self._lookup_titles(titles):
             out.append(
                 {
                     "id": doc["id"],
+                    "category_id": doc.get("category_id"),
+                    "category_path": self.c.knowledge.category_path(doc["category_id"])
+                    if doc.get("category_id")
+                    else "",
+                    "knowledge_version": doc.get("knowledge_version", 1),
                     "title": doc["title"],
                     "path": doc["path_text"],
                     "content": doc["body"][:per_doc_chars],
@@ -179,9 +206,15 @@ class WorkbenchService:
         version_hint: str = "",
     ) -> dict[str, Any]:
         if len(content.strip()) < 20:
-            raise ServiceError("too_short", "内容过短，至少 20 字符", "知识条目需要能独立看懂，请补充背景和结论")
+            raise ServiceError(
+                "too_short",
+                "内容过短，至少 20 字符",
+                "知识条目需要能独立看懂，请补充背景和结论",
+            )
         if source not in {"agent", "manual", "upload"}:
-            raise ServiceError("bad_source", f"source 只能是 agent/manual/upload，收到 {source}")
+            raise ServiceError(
+                "bad_source", f"source 只能是 agent/manual/upload，收到 {source}"
+            )
         r = self.c.repo.upsert(
             DocInput(
                 id=None,
@@ -217,7 +250,7 @@ class WorkbenchService:
     def health(self) -> dict[str, Any]:
         return {
             "ok": True,
-            "version": "0.1.0",
+            "version": "0.5.0",
             "documents": self.c.index.stats()["documents"],
             "time": time.time(),
         }

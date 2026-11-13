@@ -28,6 +28,8 @@ class Principal:
     role: str
     rpm_limit: int
     daily_limit: int
+    user_id: str | None = None
+    kind: str = "key"
 
     def can(self, need: str) -> bool:
         return ROLE_RANK.get(self.role, 0) >= ROLE_RANK.get(need, 99)
@@ -56,7 +58,9 @@ def _prefix_of(raw: str) -> str:
 
 
 class AuthService:
-    def __init__(self, db: Database, *, require_auth: bool, default_rpm: int, default_daily: int) -> None:
+    def __init__(
+        self, db: Database, *, require_auth: bool, default_rpm: int, default_daily: int
+    ) -> None:
         self.db = db
         self.require_auth = require_auth
         self.default_rpm = default_rpm
@@ -66,7 +70,13 @@ class AuthService:
     # ---------- key 管理 ----------
 
     def create_key(
-        self, name: str, role: str = "reader", *, rpm: int | None = None, daily: int | None = None
+        self,
+        name: str,
+        role: str = "reader",
+        *,
+        rpm: int | None = None,
+        daily: int | None = None,
+        owner_user_id: str | None = None,
     ) -> tuple[str, dict]:
         if role not in ROLE_RANK:
             raise AuthError(f"未知角色：{role}")
@@ -75,36 +85,72 @@ class AuthService:
         prefix = _prefix_of(raw)
         now = time.time()
         with self.db.write() as conn:
+            if owner_user_id:
+                owner = conn.execute(
+                    "SELECT role,status FROM users WHERE id=?", (owner_user_id,)
+                ).fetchone()
+                if (
+                    not owner
+                    or owner["status"] != "approved"
+                    or ROLE_RANK[role] > ROLE_RANK.get(owner["role"], 0)
+                ):
+                    raise AuthError("账号未获批准，或 Key 角色超过账号权限")
+                count = conn.execute(
+                    "SELECT COUNT(*) FROM api_keys WHERE owner_user_id=? AND enabled=1",
+                    (owner_user_id,),
+                ).fetchone()[0]
+                if count >= 20:
+                    raise AuthError(
+                        "每个账号最多启用 20 个 Key，请先吊销不再使用的 Key"
+                    )
+            while conn.execute(
+                "SELECT 1 FROM api_keys WHERE key_prefix=?", (prefix,)
+            ).fetchone():
+                raw = f"wb_{tag}_{secrets.token_urlsafe(24)}"
+                prefix = _prefix_of(raw)
             conn.execute(
                 """INSERT INTO api_keys (key_hash, key_prefix, name, role, rpm_limit, daily_limit,
-                                         enabled, created_at)
-                   VALUES (?,?,?,?,?,?,1,?)""",
+                                         enabled, created_at, owner_user_id)
+                   VALUES (?,?,?,?,?,?,1,?,?)""",
                 (
-                    hash_key(raw), prefix, name, role,
-                    rpm or self.default_rpm, daily or self.default_daily, now,
+                    hash_key(raw),
+                    prefix,
+                    name,
+                    role,
+                    rpm or self.default_rpm,
+                    daily or self.default_daily,
+                    now,
+                    owner_user_id,
                 ),
             )
         return raw, {"prefix": prefix, "name": name, "role": role}
 
-    def revoke(self, prefix: str) -> bool:
+    def revoke(self, prefix: str, *, owner_user_id: str | None = None) -> bool:
         with self.db.write() as conn:
             cur = conn.execute(
-                "UPDATE api_keys SET enabled = 0, revoked_at = ? WHERE key_prefix = ? AND enabled = 1",
-                (time.time(), prefix),
+                "UPDATE api_keys SET enabled = 0, revoked_at = ? WHERE key_prefix = ? AND enabled = 1"
+                + (" AND owner_user_id=?" if owner_user_id is not None else ""),
+                (time.time(), prefix, owner_user_id)
+                if owner_user_id is not None
+                else (time.time(), prefix),
             )
             return cur.rowcount > 0
 
-    def list_keys(self) -> list[dict]:
+    def list_keys(self, *, owner_user_id: str | None = None) -> list[dict]:
         rows = self.db.query(
-            """SELECT key_prefix, name, role, rpm_limit, daily_limit, enabled,
-                      created_at, last_used_at
-               FROM api_keys ORDER BY created_at DESC"""
+            """SELECT k.key_prefix, k.name, k.role, k.rpm_limit, k.daily_limit, k.enabled,
+                      k.auto_publish, k.created_at, k.last_used_at, k.owner_user_id, u.username AS owner_username
+               FROM api_keys k LEFT JOIN users u ON u.id=k.owner_user_id"""
+            + (" WHERE k.owner_user_id=?" if owner_user_id is not None else "")
+            + " ORDER BY k.created_at DESC",
+            (owner_user_id,) if owner_user_id is not None else (),
         )
         today = date.today().isoformat()
         out = []
         for r in rows:
             used = self.db.scalar(
-                "SELECT COUNT(*) FROM usage_log WHERE key_prefix = ? AND day = ?", (r["key_prefix"], today)
+                "SELECT COUNT(*) FROM usage_log WHERE key_prefix = ? AND day = ?",
+                (r["key_prefix"], today),
             )
             d = dict(r)
             d["enabled"] = bool(d["enabled"])
@@ -124,8 +170,15 @@ class AuthService:
                 """INSERT OR IGNORE INTO api_keys
                    (key_hash, key_prefix, name, role, rpm_limit, daily_limit, enabled, created_at)
                    VALUES (?,?,?,?,?,?,1,?)""",
-                (hash_key(raw_key), prefix, "bootstrap-admin", "admin",
-                 max(self.default_rpm, 600), max(self.default_daily, 10**9), time.time()),
+                (
+                    hash_key(raw_key),
+                    prefix,
+                    "bootstrap-admin",
+                    "admin",
+                    max(self.default_rpm, 600),
+                    max(self.default_daily, 10**9),
+                    time.time(),
+                ),
             )
 
     # ---------- 校验 ----------
@@ -134,18 +187,32 @@ class AuthService:
         if not raw_key:
             raise AuthError("缺少 API Key")
         row = self.db.one(
-            "SELECT * FROM api_keys WHERE key_hash = ? AND enabled = 1", (hash_key(raw_key),)
+            "SELECT * FROM api_keys WHERE key_hash = ? AND enabled = 1",
+            (hash_key(raw_key),),
         )
         if not row:
             raise AuthError("API Key 无效或已吊销")
+        role = row["role"]
+        if row["owner_user_id"]:
+            owner = self.db.one(
+                "SELECT role,status FROM users WHERE id=?", (row["owner_user_id"],)
+            )
+            if not owner or owner["status"] != "approved":
+                raise AuthError("Key 所属账号未获批准或已停用")
+            if ROLE_RANK.get(role, 0) > ROLE_RANK.get(owner["role"], 0):
+                role = owner["role"]
         with self.db.write() as conn:
-            conn.execute("UPDATE api_keys SET last_used_at = ? WHERE key_prefix = ?", (time.time(), row["key_prefix"]))
+            conn.execute(
+                "UPDATE api_keys SET last_used_at = ? WHERE key_prefix = ?",
+                (time.time(), row["key_prefix"]),
+            )
         return Principal(
             key_prefix=row["key_prefix"],
             name=row["name"],
-            role=row["role"],
+            role=role,
             rpm_limit=row["rpm_limit"],
             daily_limit=row["daily_limit"],
+            user_id=row["owner_user_id"],
         )
 
     # ---------- 配额 ----------
@@ -158,23 +225,40 @@ class AuthService:
         window[:] = [t for t in window if t > cutoff]
         if len(window) >= p.rpm_limit:
             retry = max(1, int(60 - (now - window[0])))
-            raise QuotaExceeded(f"请求过于频繁（{p.rpm_limit} 次/分钟）", retry_after=retry)
+            raise QuotaExceeded(
+                f"请求过于频繁（{p.rpm_limit} 次/分钟）", retry_after=retry
+            )
 
         today = date.today().isoformat()
-        used = self.db.scalar(
-            "SELECT COUNT(*) FROM usage_log WHERE key_prefix = ? AND day = ?", (p.key_prefix, today)
-        ) or 0
+        used = (
+            self.db.scalar(
+                "SELECT COUNT(*) FROM usage_log WHERE key_prefix = ? AND day = ?",
+                (p.key_prefix, today),
+            )
+            or 0
+        )
         if used >= p.daily_limit:
-            raise QuotaExceeded(f"今日调用额度已用尽（{p.daily_limit} 次/天）", retry_after=3600)
+            raise QuotaExceeded(
+                f"今日调用额度已用尽（{p.daily_limit} 次/天）", retry_after=3600
+            )
 
         window.append(now)
 
-    def log_usage(self, p: Principal | None, tool: str, ok: bool, detail: str = "") -> None:
+    def log_usage(
+        self, p: Principal | None, tool: str, ok: bool, detail: str = ""
+    ) -> None:
         prefix = p.key_prefix if p else "-"
         with self.db.write() as conn:
             conn.execute(
                 "INSERT INTO usage_log (key_prefix, tool, day, ts, ok, detail) VALUES (?,?,?,?,?,?)",
-                (prefix, tool, date.today().isoformat(), time.time(), 1 if ok else 0, detail[:300]),
+                (
+                    prefix,
+                    tool,
+                    date.today().isoformat(),
+                    time.time(),
+                    1 if ok else 0,
+                    detail[:300],
+                ),
             )
 
     def usage_summary(self, days: int = 7) -> list[dict]:

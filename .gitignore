@@ -39,3 +39,17 @@ id_ed25519*
 .vscode/
 *.swp
 .pytest_cache/
+
+# ---- Frontend ----
+node_modules/
+web/.build/
+web/test-results/
+web/playwright-report/
+
+web/.preview/
+
+# Generated downloadable client artifacts
+/web/public/downloads/
+
+# Local tooling cache
+.ruff_cache/
