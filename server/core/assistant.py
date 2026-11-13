@@ -247,7 +247,7 @@ class AssistantService:
                         json={
                             "model": conf["model"],
                             "messages": [{"role": "system", "content": system}, *previous, {"role": "user", "content": user}],
-                            "max_tokens": 2200,
+                            "max_tokens": 8192,
                             "stream": False,
                         },
                     )
@@ -269,8 +269,13 @@ class AssistantService:
                             f"模型服务调用失败（HTTP {r.status_code}），请管理员检查配置与额度{('：' + detail[:180]) if detail else ''}",
                             502,
                         )
-                    raw = r.json()["choices"][0]["message"]["content"]
+                    choice = r.json()["choices"][0]
+                    raw = choice["message"].get("content")
                     if not isinstance(raw, str) or not raw.strip():
+                        if choice.get("finish_reason") == "length":
+                            raise KnowledgeError(
+                                "模型已耗尽本次输出额度，尚未生成回答。请缩小问题范围后重试，或更换推理消耗较低的模型。", 502
+                            )
                         raise ValueError("empty model answer")
             except KnowledgeError:
                 raise

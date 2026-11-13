@@ -453,3 +453,22 @@ def test_provider_denial_preserves_actionable_error_and_redacts_secret(env, monk
         c.assistant.ask("连接池故障排查")
     assert "403" in str(exc.value) and "geographic" in str(exc.value)
     assert "sensitive-test-secret" not in str(exc.value)
+
+
+def test_reasoning_model_has_enough_output_budget_and_reports_exhaustion(env, monkeypatch):
+    from server.core.knowledge import KnowledgeError
+    c, _, _ = env
+    add_doc(c, "kb:pool", "连接池排查", body="连接池故障先检查状态。")
+    c.rebuild_index()
+    c.assistant.save(True, "https://provider.example/v1", "reasoner", "test-secret")
+    class ExhaustedResponse:
+        status_code = 200
+        def json(self):
+            return {"choices": [{"finish_reason": "length", "message": {"role": "assistant", "content": None}}]}
+    def response(self, url, **kwargs):
+        assert kwargs["json"]["max_tokens"] >= 8192
+        return ExhaustedResponse()
+    monkeypatch.setattr(FakeClient, "post", response)
+    monkeypatch.setattr("httpx.Client", FakeClient)
+    with pytest.raises(KnowledgeError, match="输出额度"):
+        c.assistant.ask("连接池故障排查")
