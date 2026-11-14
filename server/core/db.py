@@ -156,6 +156,15 @@ CREATE INDEX IF NOT EXISTS idx_calls_user_ts ON call_logs(user_id, ts DESC, id D
 CREATE INDEX IF NOT EXISTS idx_calls_key_ts ON call_logs(key_prefix, ts DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_calls_ts ON call_logs(ts);
 
+CREATE TABLE IF NOT EXISTS assistant_conversations (
+    id TEXT PRIMARY KEY,
+    owner TEXT NOT NULL,
+    title TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    updated_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_assistant_conversations_owner ON assistant_conversations(owner,updated_at);
+
 CREATE TABLE IF NOT EXISTS knowledge_links(
  id TEXT PRIMARY KEY,source_id TEXT NOT NULL REFERENCES docs(id) ON DELETE CASCADE,target_id TEXT NOT NULL REFERENCES docs(id) ON DELETE CASCADE,kind TEXT NOT NULL,note TEXT NOT NULL DEFAULT '',actor TEXT NOT NULL,created_at REAL NOT NULL,UNIQUE(source_id,target_id,kind),CHECK(source_id<>target_id)
 );

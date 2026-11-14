@@ -303,3 +303,50 @@ test("assistant preserves multi-turn context and retries failed replies", async 
   ).toBeVisible();
   await expect(page.locator(".user-message")).toHaveCount(0);
 });
+
+test("saved conversations restore after refresh and remain selectable after new chat", async ({
+  page,
+  isMobile,
+}) => {
+  const saved = new Map();
+  await page.route("**/api/v1/assistant/conversations**", async (r) => {
+    const url = new URL(r.request().url());
+    const id = url.pathname.split("/conversations/")[1];
+    if (r.request().method() === "PUT") {
+      const body = r.request().postDataJSON();
+      const data = {
+        id,
+        title: body.messages.find((m) => m.role === "user").content,
+        updated_at: Date.now(),
+        ...body,
+      };
+      saved.set(id, data);
+      return r.fulfill({ json: data });
+    }
+    if (id) return r.fulfill({ json: saved.get(id) });
+    return r.fulfill({
+      json: { conversations: [...saved.values()].reverse() },
+    });
+  });
+  await page.goto("/#/assistant");
+  await page.getByLabel("知识问答问题").fill("连接池故障怎么排查？");
+  await page.getByRole("button", { name: "发送", exact: true }).click();
+  await expect.poll(() => [...saved.values()][0]?.messages.length).toBe(2);
+  await page.reload();
+  await expect(page.locator(".assistant-bubble")).toContainText(
+    "检查连接池状态",
+  );
+  await expect(page.locator(".user-message")).toContainText("连接池故障");
+  await page.getByRole("button", { name: "新对话", exact: true }).click();
+  await expect(page.locator(".user-message")).toHaveCount(0);
+  await page.locator(".assistant-history-item").click();
+  await expect(page.locator(".assistant-bubble")).toContainText(
+    "检查连接池状态",
+  );
+  await page.getByLabel("知识问答问题").fill("接下来呢？");
+  const request = page.waitForRequest(
+    (r) => r.url().endsWith("/assistant/ask") && r.method() === "POST",
+  );
+  await page.getByRole("button", { name: "发送", exact: true }).click();
+  expect((await request).postDataJSON().history).toHaveLength(2);
+});

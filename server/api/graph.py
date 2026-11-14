@@ -6,6 +6,7 @@ from fastapi import Depends, Query
 from pydantic import BaseModel, Field
 
 from ..core.graph import GraphService
+from ..core.conversations import ConversationService
 
 
 class Link(BaseModel):
@@ -37,6 +38,19 @@ class Question(BaseModel):
     history: list[ConversationTurn] = Field(default_factory=list, max_length=12)
 
 
+class SavedMessage(BaseModel):
+    role: Literal["user", "assistant", "error"]
+    content: str = Field(min_length=1, max_length=24000)
+    time: int = Field(ge=0)
+    answer: dict | None = None
+
+
+class ConversationSnapshot(BaseModel):
+    messages: list[SavedMessage] = Field(max_length=200)
+    category_id: str = Field(default="", max_length=100)
+    mode: Literal["auto", "search", "chain"] = "auto"
+
+
 class AgentSettings(BaseModel):
     enabled: bool = False
     base_url: str = Field(default="", max_length=1000)
@@ -49,6 +63,21 @@ def register_graph(app, principal, need, get_container):
     # Single assistant instance per container, including concurrency guard.
     def agent():
         return get_container().assistant
+
+    @app.get("/api/v1/assistant/conversations")
+    def conversations(p=Depends(principal)):
+        return ConversationService(get_container()).list(p)
+
+    @app.get("/api/v1/assistant/conversations/{ident}")
+    def conversation(ident: str, p=Depends(principal)):
+        return ConversationService(get_container()).read(p, ident)
+
+    @app.put("/api/v1/assistant/conversations/{ident}")
+    def save_conversation(ident: str, req: ConversationSnapshot, p=Depends(principal)):
+        if len(ident) > 100:
+            from ..core.knowledge import KnowledgeError
+            raise KnowledgeError("对话 ID 过长")
+        return ConversationService(get_container()).save(p, ident, req.model_dump(exclude_none=True))
 
     @app.get("/api/v1/graph/all")
     def all_graph(category_id: str = "", p=Depends(principal)):

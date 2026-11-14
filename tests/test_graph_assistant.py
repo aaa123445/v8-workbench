@@ -472,3 +472,24 @@ def test_reasoning_model_has_enough_output_budget_and_reports_exhaustion(env, mo
     monkeypatch.setattr("httpx.Client", FakeClient)
     with pytest.raises(KnowledgeError, match="输出额度"):
         c.assistant.ask("连接池故障排查")
+
+
+def test_conversations_survive_service_recreation_and_are_private(env):
+    from server.core.conversations import ConversationService
+    from server.core.db import Database
+    from server.core.knowledge import KnowledgeError
+    c, client, _ = env
+    a, b = client("reader"), client("writer")
+    path = "/api/v1/assistant/conversations/chat-one"
+    payload = {"messages": [{"role": "user", "content": "连接池故障", "time": 1}, {"role": "assistant", "content": "检查状态[1]", "time": 2, "answer": {"citations": [{"id": "kb:pool"}], "trace": [{"step": "检索", "detail": "匹配资料"}]}}], "mode": "chain", "category_id": "backend"}
+    assert a.put(path, json=payload).status_code == 200
+    assert a.get("/api/v1/assistant/conversations").json()["conversations"][0]["title"] == "连接池故障"
+    assert a.get(path).json()["messages"] == payload["messages"]
+    assert b.get(path).status_code == 404
+    assert b.put(path, json=payload).status_code == 404
+    assert b.get("/api/v1/assistant/conversations").json()["conversations"] == []
+    # A fresh database connection/service sees the saved snapshot after restart.
+    from types import SimpleNamespace
+    reopened = ConversationService(SimpleNamespace(db=Database(c.db.path)))
+    principal = c.auth.authenticate(a.headers["Authorization"].split()[-1])
+    assert reopened.read(principal, "chat-one")["messages"] == payload["messages"]

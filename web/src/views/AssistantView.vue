@@ -12,6 +12,7 @@ import {
   RotateCcw,
 } from "lucide-vue-next";
 import { api, post } from "../services/api";
+import { hasAccess } from "../composables/session";
 import { authVersion } from "../composables/workspace";
 import { useResource } from "../composables/useResource";
 import MarkdownContent from "../components/MarkdownContent.vue";
@@ -30,6 +31,12 @@ const question = ref(""),
   error = ref(""),
   messages = ref([]),
   asked = ref("");
+const conversations = ref([]),
+  conversationId = ref(""),
+  historyLoading = ref(false),
+  saveError = ref("");
+let historyGeneration = 0,
+  saveQueue = Promise.resolve();
 const scroll = ref(null);
 let controller;
 const labels = {
@@ -45,15 +52,99 @@ const examples = [
   "我想学习移动开发，应该先看哪些知识？",
 ];
 const hasConversation = computed(() => messages.value.length > 0);
-const historyItems = computed(() =>
-  messages.value.filter((m) => m.role === "user"),
-);
-function selectHistory(item) {
-  question.value = item.content;
-  document
-    .querySelector(`[data-message-time="${item.time}"]`)
-    ?.scrollIntoView({ behavior: "smooth", block: "center" });
+const historyItems = computed(() => conversations.value);
+async function saveConversation() {
+  if (!messages.value.length || !hasAccess.value) return;
+  if (!conversationId.value) conversationId.value = crypto.randomUUID();
+  const id = conversationId.value,
+    generation = historyGeneration;
+  const body = JSON.parse(
+    JSON.stringify({
+      messages: messages.value,
+      category_id: category.value,
+      mode: mode.value,
+    }),
+  );
+  saveQueue = saveQueue
+    .catch(() => {})
+    .then(async () => {
+      if (generation !== historyGeneration) return;
+      try {
+        const saved = await api(
+          "/assistant/conversations/" + encodeURIComponent(id),
+          { method: "PUT", body },
+        );
+        if (generation !== historyGeneration) return;
+        conversations.value = [
+          saved,
+          ...conversations.value.filter((c) => c.id !== id),
+        ];
+        saveError.value = "";
+      } catch (e) {
+        if (generation === historyGeneration)
+          saveError.value = "对话尚未保存：" + e.message;
+      }
+    });
+  await saveQueue;
 }
+async function selectHistory(item) {
+  if (busy.value || historyLoading.value) return;
+  await saveQueue.catch(() => {});
+  const generation = historyGeneration;
+  historyLoading.value = true;
+  try {
+    const data = await api(
+      "/assistant/conversations/" + encodeURIComponent(item.id),
+    );
+    if (generation !== historyGeneration) return;
+    conversationId.value = item.id;
+    messages.value = data.messages || [];
+    category.value = data.category_id || "";
+    mode.value = data.mode || "auto";
+    question.value = "";
+    error.value = "";
+  } catch (e) {
+    if (generation === historyGeneration) saveError.value = e.message;
+  } finally {
+    if (generation === historyGeneration) historyLoading.value = false;
+  }
+}
+async function restoreHistory() {
+  const generation = ++historyGeneration;
+  controller?.abort();
+  busy.value = false;
+  messages.value = [];
+  conversations.value = [];
+  conversationId.value = "";
+  question.value = "";
+  error.value = "";
+  saveError.value = "";
+  historyLoading.value = false;
+  if (!hasAccess.value) return;
+  historyLoading.value = true;
+  try {
+    const data = await api("/assistant/conversations");
+    if (generation !== historyGeneration) return;
+    conversations.value = data.conversations || [];
+    if (conversations.value.length) {
+      const item = conversations.value[0];
+      const saved = await api(
+        "/assistant/conversations/" + encodeURIComponent(item.id),
+      );
+      if (generation !== historyGeneration) return;
+      conversationId.value = item.id;
+      messages.value = saved.messages || [];
+      category.value = saved.category_id || "";
+      mode.value = saved.mode || "auto";
+    }
+  } catch (e) {
+    if (generation === historyGeneration)
+      saveError.value = "历史记录加载失败：" + e.message;
+  } finally {
+    if (generation === historyGeneration) historyLoading.value = false;
+  }
+}
+
 watch(
   () => [messages.value.length, busy.value],
   async () => {
@@ -66,7 +157,7 @@ watch(
 );
 async function ask(value = question.value) {
   const text = value.trim();
-  if (!text || busy.value) return;
+  if (!text || busy.value || historyLoading.value) return;
   question.value = "";
   asked.value = text;
   error.value = "";
@@ -78,6 +169,7 @@ async function ask(value = question.value) {
     .slice(-8)
     .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
   messages.value.push({ role: "user", content: text, time: Date.now() });
+  saveConversation();
   await nextTick();
   scroll.value?.scrollTo({
     top: scroll.value.scrollHeight,
@@ -112,7 +204,10 @@ async function ask(value = question.value) {
       });
     }
   } finally {
-    if (controller === requestController) busy.value = false;
+    if (controller === requestController) {
+      busy.value = false;
+      if (!requestController.signal.aborted) await saveConversation();
+    }
   }
 }
 function cancel() {
@@ -123,6 +218,7 @@ function cancel() {
 function clearChat() {
   controller?.abort();
   busy.value = false;
+  conversationId.value = "";
   messages.value = [];
   question.value = "";
   error.value = "";
@@ -136,10 +232,7 @@ function retry() {
     ask(last.content);
   }
 }
-watch(authVersion, () => {
-  controller?.abort();
-  clearChat();
-});
+watch(authVersion, restoreHistory, { immediate: true });
 onBeforeUnmount(() => controller?.abort());
 </script>
 <template>
@@ -178,16 +271,16 @@ onBeforeUnmount(() => controller?.abort());
           </div>
           <button
             v-for="item in historyItems"
-            :key="item.time"
+            :key="item.id"
             class="assistant-history-item"
             @click="selectHistory(item)"
-            :title="item.content"
+            :title="item.title"
+            :disabled="busy || historyLoading"
           >
-            <span>{{ item.content }}</span
-            ><ArrowRight :size="13" />
+            <span>{{ item.title }}</span><ArrowRight :size="13" />
           </button>
           <p v-if="!historyItems.length" class="assistant-history-empty">
-            当前还没有对话记录
+            {{ historyLoading ? "正在加载历史…" : "当前还没有对话记录" }}
           </p>
         </div>
         <div class="assistant-sidebar-footer">
@@ -257,8 +350,9 @@ onBeforeUnmount(() => controller?.abort());
                     >
                       <span>{{ traceIndex + 1 }}</span>
                       <div>
-                        <strong>{{ step.step }}</strong
-                        ><small>{{ step.detail }}</small>
+                        <strong>{{ step.step }}</strong><small>{{
+                          step.detail
+                        }}</small>
                       </div>
                     </div>
                   </div>
@@ -331,6 +425,12 @@ onBeforeUnmount(() => controller?.abort());
           <h3>模型服务尚未启用</h3>
           请联系管理员在工作台管理中配置。
         </div>
+        <p v-if="saveError" class="assistant-inline-error" role="alert">
+          {{ saveError }}
+          <button type="button" class="text-link" @click="saveConversation">
+            重试保存
+          </button>
+        </p>
         <p
           v-if="error && !messages.some((m) => m.role === 'error')"
           class="assistant-inline-error"
@@ -382,7 +482,9 @@ onBeforeUnmount(() => controller?.abort());
               v-else
               type="submit"
               class="button primary"
-              :disabled="!status?.ready || question.trim().length < 2"
+              :disabled="
+                historyLoading || !status?.ready || question.trim().length < 2
+              "
             >
               <Send :size="15" />发送
             </button>
